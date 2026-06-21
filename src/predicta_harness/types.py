@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from .usage import cost_for
+
 # A canonical message: role + content. content may be a plain string (shorthand
 # for text) or a list of blocks (dicts) like Anthropic's.
 Role = Literal["user", "assistant"]
@@ -38,6 +40,19 @@ class Usage:
     cache_write_tokens: int = 0
     cost_usd: float = 0.0
 
+    @classmethod
+    def for_call(
+        cls, model_id: str, input_tokens: int, output_tokens: int,
+        cache_write: int = 0, cache_read: int = 0,
+    ) -> "Usage":
+        """Build the Usage for a single model call (calls=1) and compute its cost."""
+        return cls(
+            model=model_id, calls=1,
+            input_tokens=input_tokens, output_tokens=output_tokens,
+            cache_write_tokens=cache_write, cache_read_tokens=cache_read,
+            cost_usd=cost_for(model_id, input_tokens, output_tokens, cache_write, cache_read),
+        )
+
     def add(self, other: "Usage") -> None:
         self.calls += other.calls
         self.input_tokens += other.input_tokens
@@ -62,6 +77,14 @@ class AssistantTurn:
     content_blocks: list[Block]   # assistant content in canonical format (for the history)
     usage: Usage
     stop_reason: str              # "end_turn" | "tool_use" | other
+
+
+def tool_result_block(tool_use_id: str, output: str, is_error: bool = False) -> Block:
+    """Build a canonical tool_result block (provider-independent)."""
+    block: Block = {"type": "tool_result", "tool_use_id": tool_use_id, "content": output}
+    if is_error:
+        block["is_error"] = True
+    return block
 
 
 @dataclass

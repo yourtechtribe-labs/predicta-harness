@@ -14,7 +14,7 @@ from pydantic import BaseModel, ValidationError
 
 from .providers.base import Provider, resolve
 from .tool import Tool, object_input_schema
-from .types import RunResult, Usage
+from .types import RunResult, Usage, tool_result_block
 
 _SUBMIT_NAME = "submit_result"
 
@@ -106,9 +106,10 @@ class Agent:
 
             if turn.stop_reason != "tool_use" or not turn.tool_calls:
                 final_text = turn.text
-                if result_schema is None or data is not None:
+                if result_schema is None:
                     break
-                # We expected submit_result but it answered in text: remind it.
+                # Structured run but it answered in text instead of calling
+                # submit_result (data is always None here — success exits the loop).
                 messages.append({"role": "user", "content":
                                  f"Missing the structured answer: call '{_SUBMIT_NAME}'."})
                 continue
@@ -130,10 +131,7 @@ class Agent:
                 else:
                     output, is_error = self._dispatch(call.name, call.input)
 
-                block = {"type": "tool_result", "tool_use_id": call.id, "content": output}
-                if is_error:
-                    block["is_error"] = True
-                result_blocks.append(block)
+                result_blocks.append(tool_result_block(call.id, output, is_error))
                 if self.on_tool:
                     self.on_tool(call.name, call.input, output)
 

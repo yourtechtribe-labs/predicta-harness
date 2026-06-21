@@ -11,7 +11,6 @@ from typing import Any
 
 from ..tool import Tool
 from ..types import AssistantTurn, Message, ToolCall, Usage
-from ..usage import cost_for
 from .base import Provider
 
 
@@ -50,26 +49,15 @@ class AnthropicProvider(Provider):
         ]
 
         u = resp.usage
-        inp = getattr(u, "input_tokens", 0) or 0
-        out = getattr(u, "output_tokens", 0) or 0
-        cw = getattr(u, "cache_creation_input_tokens", 0) or 0
-        cr = getattr(u, "cache_read_input_tokens", 0) or 0
-        usage = Usage(
-            model=model_id, calls=1,
-            input_tokens=inp, output_tokens=out,
-            cache_write_tokens=cw, cache_read_tokens=cr,
-            cost_usd=cost_for(model_id, inp, out, cw, cr),
+        usage = Usage.for_call(
+            model_id,
+            getattr(u, "input_tokens", 0) or 0,
+            getattr(u, "output_tokens", 0) or 0,
+            cache_write=getattr(u, "cache_creation_input_tokens", 0) or 0,
+            cache_read=getattr(u, "cache_read_input_tokens", 0) or 0,
         )
 
         return AssistantTurn(
             text=text, tool_calls=tool_calls, content_blocks=content_blocks,
             usage=usage, stop_reason=resp.stop_reason or "end_turn",
         )
-
-    @staticmethod
-    def tool_result_block(call: ToolCall, output: str, is_error: bool = False) -> dict:
-        """Build the tool_result block in canonical format (= Anthropic)."""
-        block = {"type": "tool_result", "tool_use_id": call.id, "content": output}
-        if is_error:
-            block["is_error"] = True
-        return block

@@ -23,7 +23,6 @@ from typing import Any
 
 from ..tool import Tool
 from ..types import AssistantTurn, Message, ToolCall, Usage
-from ..usage import cost_for
 from .base import Provider
 
 
@@ -71,11 +70,10 @@ class OpenAIProvider(Provider):
             )
 
         u = resp.usage
-        inp = getattr(u, "prompt_tokens", 0) or 0
-        out = getattr(u, "completion_tokens", 0) or 0
-        usage = Usage(
-            model=model_id, calls=1, input_tokens=inp, output_tokens=out,
-            cost_usd=cost_for(model_id, inp, out, 0, 0),
+        usage = Usage.for_call(
+            model_id,
+            getattr(u, "prompt_tokens", 0) or 0,
+            getattr(u, "completion_tokens", 0) or 0,
         )
 
         stop = "tool_use" if tool_calls else "end_turn"
@@ -83,14 +81,6 @@ class OpenAIProvider(Provider):
             text=text, tool_calls=tool_calls, content_blocks=content_blocks,
             usage=usage, stop_reason=stop,
         )
-
-    @staticmethod
-    def tool_result_block(call: ToolCall, output: str, is_error: bool = False) -> dict:
-        """Canonical format (Anthropic-like). The translation to role='tool' happens in _to_openai_messages."""
-        block = {"type": "tool_result", "tool_use_id": call.id, "content": output}
-        if is_error:
-            block["is_error"] = True
-        return block
 
     # --- canonical -> OpenAI Chat Completions translation -------------------
 
