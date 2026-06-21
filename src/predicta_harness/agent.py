@@ -13,7 +13,7 @@ from typing import Any, Callable
 from pydantic import BaseModel, ValidationError
 
 from .providers.base import Provider, resolve
-from .tool import Tool
+from .tool import Tool, object_input_schema
 from .types import RunResult, Usage
 
 _SUBMIT_NAME = "submit_result"
@@ -150,11 +150,7 @@ class Agent:
     def _build_submit_tool(self, schema_model: type[BaseModel]) -> Tool:
         """Create the synthetic tool whose input is the Pydantic model's JSON Schema."""
         js = schema_model.model_json_schema()
-        input_schema: dict[str, Any] = {"type": "object", "properties": js.get("properties", {})}
-        if js.get("required"):
-            input_schema["required"] = js["required"]
-        if js.get("$defs"):  # nested types / enums (Literal) live here
-            input_schema["$defs"] = js["$defs"]
+        input_schema = object_input_schema(js)
         fields = ", ".join(js.get("properties", {}).keys())
         desc = f"Submit the final structured answer. Fill in all fields: {fields}."
         return Tool(_noop, _SUBMIT_NAME, desc, input_schema)

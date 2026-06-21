@@ -22,6 +22,22 @@ from typing import Any, Callable, get_type_hints
 from pydantic import create_model
 
 
+def object_input_schema(json_schema: dict) -> dict:
+    """
+    Turn a pydantic ``model_json_schema()`` into a tool input_schema.
+
+    Keeps ``properties``, ``required`` and — critically — ``$defs``. Fields typed
+    as an Enum or a nested model produce a ``$ref`` into ``$defs``; dropping
+    ``$defs`` would leave a dangling reference that providers reject.
+    """
+    schema: dict = {"type": "object", "properties": json_schema.get("properties", {})}
+    if json_schema.get("required"):
+        schema["required"] = json_schema["required"]
+    if json_schema.get("$defs"):  # nested models / Enum fields live here
+        schema["$defs"] = json_schema["$defs"]
+    return schema
+
+
 class Tool:
     """Wraps a function as a tool the model can invoke."""
 
@@ -51,15 +67,7 @@ class Tool:
             fields[pname] = (annotation, default)
 
         model = create_model(f"{tool_name}_Args", **fields)  # type: ignore[call-overload]
-        schema = model.model_json_schema()
-        # Anthropic/OpenAI want a flat object schema with properties/required.
-        input_schema = {
-            "type": "object",
-            "properties": schema.get("properties", {}),
-        }
-        if schema.get("required"):
-            input_schema["required"] = schema["required"]
-
+        input_schema = object_input_schema(model.model_json_schema())
         return cls(fn, tool_name, tool_desc, input_schema)
 
     def run(self, inputs: dict[str, Any]) -> str:
