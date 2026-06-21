@@ -1,0 +1,24 @@
+[project]
+name = "predicta-harness"
+version = "0.1.0"
+description = "A provider-agnostic agent harness for Python — the Claude Code / Flue pattern, but in Python and not tied to a single model provider."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Albert Gil López" }]
+keywords = ["agent", "llm", "harness", "tool-use", "anthropic", "openai"]
+dependencies = [
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.40"]
+openai = ["openai>=1.40"]
+all = ["anthropic>=0.40", "openai>=1.40"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/predicta_harness"]
