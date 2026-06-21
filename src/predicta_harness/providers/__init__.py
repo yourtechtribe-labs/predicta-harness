@@ -1,4 +1,4 @@
-"""Providers del harness. Built-in: anthropic, openai (y OpenAI-compatible)."""
+"""Harness providers. Built-in: anthropic, openai (and OpenAI-compatible)."""
 
 from .base import Provider, register_provider, resolve
 

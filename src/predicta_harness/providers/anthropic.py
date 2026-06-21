@@ -1,8 +1,8 @@
 """
-anthropic.py — Provider para la API de Anthropic (Claude).
+anthropic.py — Provider for the Anthropic API (Claude).
 
-El formato canónico del harness ya es Anthropic-like, así que la traducción es
-casi una identidad. Solo serializamos los bloques Pydantic del SDK a dicts.
+The harness canonical format is already Anthropic-like, so the translation is almost
+an identity. We only serialize the SDK's Pydantic blocks to dicts.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from .base import Provider
 
 class AnthropicProvider(Provider):
     def __init__(self, api_key: str | None = None, **client_kwargs: Any):
-        import anthropic  # import perezoso: solo si se usa este provider
+        import anthropic  # lazy import: only if this provider is used
         self._client = anthropic.Anthropic(api_key=api_key, **client_kwargs)
 
     def complete(
@@ -32,12 +32,12 @@ class AnthropicProvider(Provider):
             model=model_id,
             max_tokens=max_tokens,
             system=system or None,
-            tools=tool_specs or [],  # Anthropic acepta lista vacía
+            tools=tool_specs or [],  # Anthropic accepts an empty list
             messages=messages,
             **kwargs,
         )
 
-        # Serializa los bloques Pydantic del SDK a dicts JSON-ables (para el historial).
+        # Serialize the SDK's Pydantic blocks to JSON-able dicts (for the history).
         content_blocks = [
             b.model_dump() if hasattr(b, "model_dump") else b for b in resp.content
         ]
@@ -68,7 +68,7 @@ class AnthropicProvider(Provider):
 
     @staticmethod
     def tool_result_block(call: ToolCall, output: str, is_error: bool = False) -> dict:
-        """Construye el bloque tool_result en formato canónico (= Anthropic)."""
+        """Build the tool_result block in canonical format (= Anthropic)."""
         block = {"type": "tool_result", "tool_use_id": call.id, "content": output}
         if is_error:
             block["is_error"] = True

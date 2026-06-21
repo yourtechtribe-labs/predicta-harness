@@ -1,20 +1,20 @@
 """
 predicta-harness — A provider-agnostic agent harness for Python.
 
-El patrón de Claude Code / Flue (agent loop + tools + sesiones), pero en Python
-y sin atarte a un proveedor de modelo. Mismo agente sobre Claude, OpenAI o un
-LLM local (OpenAI-compatible).
+The Claude Code / Flue pattern (agent loop + tools + sessions), but in Python and
+not tied to a single model provider. The same agent runs over Claude, OpenAI or a
+local LLM (any OpenAI-compatible endpoint).
 
     from predicta_harness import Agent, tool
 
     @tool
     def add(a: int, b: int) -> str:
-        "Suma dos números."
+        "Add two numbers."
         return str(a + b)
 
     agent = Agent(model="anthropic/claude-sonnet-4-6", tools=[add],
-                  system="Eres un asistente de cálculo.")
-    print(agent.run("cuánto es 21 + 21?").text)
+                  system="You are a calculation assistant.")
+    print(agent.run("what is 21 + 21?").text)
 """
 
 from .agent import Agent

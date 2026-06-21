@@ -1,17 +1,17 @@
 """
-tool.py — El decorador @tool y la clase Tool.
+tool.py — The @tool decorator and the Tool class.
 
-Defines una función Python normal con type hints + docstring, y `@tool` la
-convierte en una herramienta que el modelo puede invocar: infiere el JSON Schema
-de los parámetros (con pydantic) y usa el docstring como descripción.
+Define a plain Python function with type hints + docstring, and @tool turns it into
+a tool the model can call: it infers the JSON Schema of the parameters (with pydantic)
+and uses the docstring as the description.
 
     @tool
     def get_weather(city: str, units: str = "celsius") -> str:
-        "Devuelve el tiempo de una ciudad."
+        "Return the weather for a city."
         ...
 
-El Agent ejecuta la tool automáticamente cuando el modelo la pide; tú no escribes
-ningún `if name == "...":` (eso lo hacía a mano ai_service.py).
+The Agent runs the tool automatically when the model asks for it; you never write
+any `if name == "...":` dispatch by hand.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from pydantic import create_model
 
 
 class Tool:
-    """Envuelve una función como herramienta invocable por el modelo."""
+    """Wraps a function as a tool the model can invoke."""
 
     def __init__(self, fn: Callable, name: str, description: str, input_schema: dict):
         self.fn = fn
@@ -38,8 +38,8 @@ class Tool:
         tool_name = name or fn.__name__
         tool_desc = description or (inspect.getdoc(fn) or "").strip()
 
-        # Construimos un modelo pydantic dinámico con los parámetros de la función
-        # para derivar el JSON Schema. Cada parámetro aporta (tipo, default).
+        # Build a dynamic pydantic model from the function parameters to derive the
+        # JSON Schema. Each parameter contributes (type, default).
         sig = inspect.signature(fn)
         hints = get_type_hints(fn)
         fields: dict[str, Any] = {}
@@ -52,7 +52,7 @@ class Tool:
 
         model = create_model(f"{tool_name}_Args", **fields)  # type: ignore[call-overload]
         schema = model.model_json_schema()
-        # Anthropic/OpenAI quieren un object schema plano con properties/required.
+        # Anthropic/OpenAI want a flat object schema with properties/required.
         input_schema = {
             "type": "object",
             "properties": schema.get("properties", {}),
@@ -63,7 +63,7 @@ class Tool:
         return cls(fn, tool_name, tool_desc, input_schema)
 
     def run(self, inputs: dict[str, Any]) -> str:
-        """Ejecuta la función con los argumentos del modelo y devuelve un string."""
+        """Run the function with the model's arguments and return a string."""
         result = self.fn(**inputs)
         return result if isinstance(result, str) else str(result)
 
@@ -71,7 +71,7 @@ class Tool:
 def tool(
     fn: Callable | None = None, *, name: str | None = None, description: str | None = None
 ):
-    """Decorador. Uso: `@tool` o `@tool(name=..., description=...)`."""
+    """Decorator. Usage: `@tool` or `@tool(name=..., description=...)`."""
     def wrap(f: Callable) -> Tool:
         return Tool.from_function(f, name=name, description=description)
 

@@ -1,10 +1,10 @@
 """
-types.py — Tipos normalizados del harness, independientes del proveedor.
+types.py — Normalized harness types, independent of the provider.
 
-El "formato canónico" de mensajes es deliberadamente *Anthropic-like* (bloques
-`text` / `tool_use` / `tool_result`), porque es el más limpio. Cada Provider
-traduce de/a su propia API desde este formato. Así el Agent y el loop nunca
-saben con qué proveedor hablan.
+The canonical message format is deliberately *Anthropic-like* (`text` / `tool_use`
+/ `tool_result` blocks), because it is the cleanest. Each Provider translates
+to/from its own API from this format. That way the Agent and the loop never know
+which provider they are talking to.
 """
 
 from __future__ import annotations
@@ -12,8 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-# Un mensaje canónico: role + content. content puede ser un string simple
-# (atajo para texto) o una lista de bloques (dicts) como los de Anthropic.
+# A canonical message: role + content. content may be a plain string (shorthand
+# for text) or a list of blocks (dicts) like Anthropic's.
 Role = Literal["user", "assistant"]
 Message = dict[str, Any]  # {"role": Role, "content": str | list[Block]}
 Block = dict[str, Any]    # {"type": "text"|"tool_use"|"tool_result", ...}
@@ -21,7 +21,7 @@ Block = dict[str, Any]    # {"type": "text"|"tool_use"|"tool_result", ...}
 
 @dataclass
 class ToolCall:
-    """Una petición del modelo para ejecutar una tool (sigue siendo solo texto)."""
+    """A model request to run a tool (still just text)."""
     id: str
     name: str
     input: dict[str, Any]
@@ -29,7 +29,7 @@ class ToolCall:
 
 @dataclass
 class Usage:
-    """Contabilidad de tokens y coste de una ejecución (acumulable)."""
+    """Token and cost accounting for a run (accumulable)."""
     model: str = ""
     calls: int = 0
     input_tokens: int = 0
@@ -54,21 +54,21 @@ class Usage:
 @dataclass
 class AssistantTurn:
     """
-    Resultado normalizado de UNA llamada al modelo (un turno del asistente).
-    Lo devuelve cada Provider.complete(); el Agent no toca la API cruda.
+    Normalized result of ONE model call (one assistant turn). Returned by every
+    Provider.complete(); the Agent never touches the raw API.
     """
     text: str
     tool_calls: list[ToolCall]
-    content_blocks: list[Block]   # contenido del assistant en formato canónico (para el historial)
+    content_blocks: list[Block]   # assistant content in canonical format (for the history)
     usage: Usage
-    stop_reason: str              # "end_turn" | "tool_use" | otro
+    stop_reason: str              # "end_turn" | "tool_use" | other
 
 
 @dataclass
 class RunResult:
-    """Lo que devuelve Agent.run(): el texto final + telemetría + historial completo."""
+    """What Agent.run() returns: final text + telemetry + the full message history."""
     text: str
     usage: Usage
     messages: list[Message] = field(default_factory=list)
-    steps: int = 0                # cuántas vueltas dio el loop (llamadas al modelo)
-    data: Any = None              # objeto validado, si se pasó result_schema (structured output)
+    steps: int = 0                # how many loop iterations (model calls) it took
+    data: Any = None              # validated object, if result_schema was passed (structured output)

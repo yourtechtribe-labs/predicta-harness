@@ -1,18 +1,18 @@
 """
-quickstart.py — El MISMO agente y la MISMA tool corriendo sobre Claude (Anthropic)
-y sobre un modelo local (Ollama, OpenAI-compatible). Solo cambia el string del modelo.
-Eso es el diferencial del harness: provider-agnostic.
+quickstart.py — The SAME agent and the SAME tool running over Claude (Anthropic)
+and over a local model (Ollama, OpenAI-compatible). Only the model string changes.
+That is the harness differentiator: provider-agnostic.
 
-Ejecutar:
+Run:
     ANTHROPIC_API_KEY=sk-... PYTHONPATH=src python examples/quickstart.py
-    # opcional, para probar también un modelo local:
-    #   ollama serve   (y `ollama pull llama3.1:8b`)
+    # optional, to also try a local model:
+    #   ollama serve   (and `ollama pull llama3.1:8b`), then set RUN_LOCAL=1
 """
 
 import os
 import sys
 
-sys.stdout.reconfigure(encoding="utf-8")  # consola Windows (cp1252) -> utf-8
+sys.stdout.reconfigure(encoding="utf-8")  # Windows console (cp1252) -> utf-8
 
 from predicta_harness import Agent, tool, register_provider
 from predicta_harness.providers.openai import OpenAIProvider
