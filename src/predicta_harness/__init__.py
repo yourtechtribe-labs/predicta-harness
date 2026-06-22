@@ -21,10 +21,15 @@ from .agent import Agent
 from .tool import Tool, tool
 from .providers.base import Provider, register_provider, resolve
 from .types import RunResult, Usage, ToolCall
+from .sandbox import (
+    Sandbox, LocalSandbox, Workspace, ExecResult, SandboxError, sandbox_tools,
+)
 
 __version__ = "0.1.0"
 __all__ = [
     "Agent", "tool", "Tool",
     "Provider", "register_provider", "resolve",
     "RunResult", "Usage", "ToolCall",
+    # sandbox substrate (code execution + persistent files)
+    "Sandbox", "LocalSandbox", "Workspace", "ExecResult", "SandboxError", "sandbox_tools",
 ]
