@@ -7,8 +7,12 @@ It writes a file, runs Python that reads it, and feeds the result back into its 
 real model to let the LLM drive the same tools itself.
 
 Run:
-    PYTHONPATH=src python examples/sandbox_agent.py            # offline (scripted model)
-    ANTHROPIC_API_KEY=sk-... PYTHONPATH=src python examples/sandbox_agent.py   # real LLM
+    python examples/sandbox_agent.py                          # offline (scripted model)
+    ANTHROPIC_API_KEY=sk-... python examples/sandbox_agent.py # real LLM (Claude)
+    # any OpenAI-compatible endpoint (a local vLLM/Ollama, or your own gateway):
+    OPENAI_COMPAT_BASE_URL=https://host/v1 OPENAI_COMPAT_MODEL=my-model \
+      OPENAI_COMPAT_API_KEY=... OPENAI_COMPAT_INSECURE_TLS=true \
+      python examples/sandbox_agent.py
 
 On Linux, swap LocalSandbox -> BubblewrapSandbox(ws) below for REAL isolation (no network,
 no host filesystem). LocalSandbox has no isolation — fine for trusted/demo use.
@@ -66,6 +70,24 @@ def main() -> None:
 
     if os.environ.get("ANTHROPIC_API_KEY"):
         model = "anthropic/claude-sonnet-4-6"
+    elif os.environ.get("OPENAI_COMPAT_BASE_URL"):
+        # Any OpenAI-compatible endpoint: a local vLLM/Ollama, or the gateway you already
+        # run. Point it with env vars (no secrets in code). OPENAI_COMPAT_INSECURE_TLS=true
+        # for a self-signed cert (e.g. an internal vLLM behind a non-validating proxy).
+        import httpx
+
+        from predicta_harness.providers.openai import OpenAIProvider
+
+        ckw = {}
+        if os.environ.get("OPENAI_COMPAT_INSECURE_TLS", "").lower() == "true":
+            ckw["http_client"] = httpx.Client(verify=False)
+        register_provider("compat", OpenAIProvider(
+            base_url=os.environ["OPENAI_COMPAT_BASE_URL"],
+            api_key=os.environ.get("OPENAI_COMPAT_API_KEY", "x"),
+            **ckw,
+        ))
+        model = f"compat/{os.environ.get('OPENAI_COMPAT_MODEL', 'model')}"
+        print(f"(driving the real model {model} @ {os.environ['OPENAI_COMPAT_BASE_URL']})\n")
     else:
         register_provider("demo", _ScriptedModel([
             ("tool", "t1", "write_file", {"path": "data.txt", "content": "3\n5\n8\n"}),
@@ -73,7 +95,8 @@ def main() -> None:
             ("text", "The numbers in data.txt (3, 5, 8) sum to 16."),
         ]))
         model = "demo/scripted"
-        print("(no ANTHROPIC_API_KEY -> scripted model; set the key to drive it with a real LLM)\n")
+        print("(no model configured -> scripted model; set ANTHROPIC_API_KEY or "
+              "OPENAI_COMPAT_BASE_URL to drive it with a real LLM)\n")
 
     agent = Agent(
         model=model, system=SYSTEM, tools=tools,
