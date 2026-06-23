@@ -40,3 +40,15 @@ class Sandbox(ABC):
         - ``lang`` other than the supported one raises ``ValueError``.
         """
         raise NotImplementedError
+
+
+def as_text(buf: object) -> str:
+    """TimeoutExpired carries partial output as str (text mode) or bytes; normalize.
+
+    Shared by the subprocess-based backends (local, bubblewrap) so the normalization
+    lives in one place."""
+    if buf is None:
+        return ""
+    if isinstance(buf, bytes):
+        return buf.decode("utf-8", "replace")
+    return str(buf)

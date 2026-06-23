@@ -24,7 +24,7 @@ import shutil
 import subprocess
 import time
 
-from .base import Sandbox
+from .base import Sandbox, as_text
 from .types import ExecResult, SandboxError
 from .workspace import Workspace
 
@@ -81,17 +81,9 @@ class BubblewrapSandbox(Sandbox):
         except subprocess.TimeoutExpired as e:
             # Killing the bwrap process tears down the whole jail (--die-with-parent).
             return ExecResult(
-                stdout=_as_text(e.stdout),
-                stderr=_as_text(e.stderr),
+                stdout=as_text(e.stdout),
+                stderr=as_text(e.stderr),
                 exit_code=124,
                 timed_out=True,
                 duration_ms=int((time.monotonic() - t0) * 1000),
             )
-
-
-def _as_text(buf: object) -> str:
-    if buf is None:
-        return ""
-    if isinstance(buf, bytes):
-        return buf.decode("utf-8", "replace")
-    return str(buf)

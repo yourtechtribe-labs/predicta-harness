@@ -17,16 +17,19 @@ import tempfile
 from http.server import BaseHTTPRequestHandler
 
 from ..agent import Agent
-from ..sandbox import BubblewrapSandbox, LocalSandbox, Workspace, sandbox_tools
+from ..sandbox import BubblewrapSandbox, LocalSandbox, Sandbox, Workspace, sandbox_tools
 
 WORK_SYSTEM = (
     "You are a coding teammate working in a shared sandbox workspace. Use write_file to "
     "create files and run_code to execute Python. Accomplish the goal with real, tested "
     "code — never invent results; run code to verify them. Keep going until the goal is done."
 )
+# Per-tool output is hard-clipped to this many chars on the SSE wire: it's a live PROGRESS
+# preview, not the full result (the model already saw the full output inside its loop).
+_SSE_PREVIEW = 2000
 
 
-def _make_sandbox(ws: Workspace):
+def _make_sandbox(ws: Workspace) -> Sandbox:
     """local anywhere; bubblewrap (real isolation) when PREDICTA_SANDBOX=bubblewrap (the VM)."""
     if os.environ.get("PREDICTA_SANDBOX", "local").lower() == "bubblewrap":
         return BubblewrapSandbox(ws)
@@ -35,7 +38,7 @@ def _make_sandbox(ws: Workspace):
 
 class WorkHandler(BaseHTTPRequestHandler):
     # Quiet: the office logs the work; we don't need stderr access logs.
-    def log_message(self, *args) -> None:  # noqa: D401
+    def log_message(self, *args) -> None:
         pass
 
     def do_GET(self) -> None:
@@ -70,7 +73,7 @@ class WorkHandler(BaseHTTPRequestHandler):
                 tools=sandbox_tools(ws, _make_sandbox(ws)),
                 max_steps=int(body.get("maxSteps", 12)),
                 # Fires inside the ReAct loop → each executed sandbox tool streams live.
-                on_tool=lambda n, i, o: self._sse("tool", {"name": n, "input": i, "output": o[:2000]}),
+                on_tool=lambda n, i, o: self._sse("tool", {"name": n, "input": i, "output": o[:_SSE_PREVIEW]}),
             )
             result = agent.run(
                 body["goal"],

@@ -15,7 +15,7 @@ import subprocess
 import sys
 import time
 
-from .base import Sandbox
+from .base import Sandbox, as_text
 from .types import ExecResult
 from .workspace import Workspace
 
@@ -51,18 +51,9 @@ class LocalSandbox(Sandbox):
             # The process was killed at the wall-clock limit. Return what it printed so
             # far + the conventional 124 exit code; the agent reads `timed_out` and fixes.
             return ExecResult(
-                stdout=_as_text(e.stdout),
-                stderr=_as_text(e.stderr),
+                stdout=as_text(e.stdout),
+                stderr=as_text(e.stderr),
                 exit_code=124,
                 timed_out=True,
                 duration_ms=int((time.monotonic() - t0) * 1000),
             )
-
-
-def _as_text(buf: object) -> str:
-    """TimeoutExpired carries partial output as str (text mode) or bytes; normalize."""
-    if buf is None:
-        return ""
-    if isinstance(buf, bytes):
-        return buf.decode("utf-8", "replace")
-    return str(buf)
