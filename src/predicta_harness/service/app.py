@@ -16,6 +16,7 @@ import os
 import tempfile
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qs, urlparse
 
 from ..agent import Agent
 from ..sandbox import BubblewrapSandbox, LocalSandbox, Sandbox, Workspace, sandbox_tools
@@ -28,6 +29,9 @@ WORK_SYSTEM = (
 # Per-tool output is hard-clipped to this many chars on the SSE wire: it's a live PROGRESS
 # preview, not the full result (the model already saw the full output inside its loop).
 _SSE_PREVIEW = 2000
+# Max chars served by GET /file (the explorer viewer): bound the payload so a huge file
+# can't freeze the UI / blow the wire. Over this, content is clipped + truncated=true (F6).
+WS_VIEW_MAX = 100_000
 
 
 def _today_madrid() -> str:
@@ -64,15 +68,53 @@ class WorkHandler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self) -> None:
-        if self.path == "/healthz":
+        parsed = urlparse(self.path)
+        if parsed.path == "/healthz":
             try:
                 # Constructing the configured sandbox confirms readiness (e.g. bwrap present).
                 _make_sandbox(Workspace(os.path.join(tempfile.gettempdir(), "predicta-healthz")))
                 self._text(200, "ok")
             except Exception as e:  # pragma: no cover - infra
                 self._text(503, f"sandbox not ready: {e}")
+        elif parsed.path == "/files":
+            self._files(parse_qs(parsed.query))
+        elif parsed.path == "/file":
+            self._file(parse_qs(parsed.query))
         else:
             self._text(404, "not found")
+
+    # ── F6: read-only workspace browsing (the office proxies these for the explorer) ──
+    def _files(self, qs: dict) -> None:
+        """List the files in a workspace. Any failure (bad/missing param) → 400 {error}."""
+        try:
+            ws = Workspace(qs["workspace"][0])
+            self._json(200, {"files": ws.list_files()})
+        except Exception as e:
+            self._json(400, {"error": f"{type(e).__name__}: {e}"})
+
+    def _file(self, qs: dict) -> None:
+        """Read ONE file's text, clipped to WS_VIEW_MAX. Routes through Workspace, so a
+        traversal/absolute path raises ValueError (→400) and a missing file raises
+        FileNotFoundError (→404) — the agent's jail is reused as the endpoint's guard."""
+        try:
+            ws = Workspace(qs["workspace"][0])
+            rel = qs["path"][0]
+            text = ws.read_file(rel)
+        except FileNotFoundError:
+            self._json(404, {"error": f"not found: {qs.get('path', ['?'])[0]}"})
+            return
+        except Exception as e:  # ValueError (traversal), KeyError (missing param), UnicodeDecodeError…
+            self._json(400, {"error": f"{type(e).__name__}: {e}"})
+            return
+        self._json(200, {"path": rel, "content": text[:WS_VIEW_MAX], "truncated": len(text) > WS_VIEW_MAX})
+
+    def _json(self, code: int, obj: dict) -> None:
+        body = json.dumps(obj).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_POST(self) -> None:
         if self.path != "/work":
