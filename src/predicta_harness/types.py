@@ -27,6 +27,11 @@ class ToolCall:
     id: str
     name: str
     input: dict[str, Any]
+    # Set by a provider when the model's tool-call arguments could NOT be parsed (e.g. a
+    # JSON string truncated at the token limit). The agent loop then feeds this actionable
+    # message back to the model instead of calling the tool with empty args (which would
+    # raise a cryptic "missing required argument"). None = parsed fine.
+    parse_error: str | None = None
 
 
 @dataclass

@@ -118,7 +118,11 @@ class Agent:
 
             result_blocks: list[dict] = []
             for call in turn.tool_calls:
-                if result_schema is not None and call.name == _SUBMIT_NAME:
+                if call.parse_error is not None:
+                    # The provider couldn't parse this call's arguments — hand the model the
+                    # actionable reason instead of calling the tool with empty/garbage args.
+                    output, is_error = call.parse_error, True
+                elif result_schema is not None and call.name == _SUBMIT_NAME:
                     try:
                         data = result_schema.model_validate(call.input)
                         final_text = turn.text

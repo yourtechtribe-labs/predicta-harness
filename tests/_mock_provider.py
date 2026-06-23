@@ -28,10 +28,11 @@ class ScriptedProvider(Provider):
         self.calls += 1
         usage = Usage(model=model_id, calls=1, input_tokens=1, output_tokens=1)
         if spec[0] == "tool":
-            _, tid, name, inp = spec
+            _, tid, name, inp = spec[:4]
+            parse_error = spec[4] if len(spec) > 4 else None  # optional 5th element
             return AssistantTurn(
                 text="",
-                tool_calls=[ToolCall(id=tid, name=name, input=inp)],
+                tool_calls=[ToolCall(id=tid, name=name, input=inp, parse_error=parse_error)],
                 content_blocks=[{"type": "tool_use", "id": tid, "name": name, "input": inp}],
                 usage=usage,
                 stop_reason="tool_use",

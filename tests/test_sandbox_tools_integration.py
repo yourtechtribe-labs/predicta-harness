@@ -59,3 +59,22 @@ def test_tool_interceptor_blocks_run_code(tmp_path):
     # the interceptor returned a string → the tool NEVER executed → no side effect.
     assert not (ws.root / "ran.flag").exists()
     assert r.text == "done"
+
+
+def test_parse_error_is_fed_back_not_executed(tmp_path):
+    # A tool call whose arguments couldn't be parsed (parse_error set, e.g. truncated JSON)
+    # must hand the model the actionable message and NOT run the tool with empty args.
+    ws = Workspace(tmp_path / "ws")
+    register_provider("mockpe", ScriptedProvider([
+        ("tool", "t1", "write_file", {}, "Arguments were not valid JSON (truncated). Retry smaller."),
+        ("text", "ok, I'll retry smaller."),
+    ]))
+    seen: list[tuple[str, str]] = []
+    agent = Agent(
+        model="mockpe/x", tools=sandbox_tools(ws, LocalSandbox(ws)),
+        on_tool=lambda n, i, o: seen.append((n, o)),
+    )
+    r = agent.run("write a huge file")
+    assert any("not valid JSON" in o for n, o in seen if n == "write_file")  # error fed back
+    assert ws.list_files() == []        # the tool did NOT run (no cryptic missing-arg crash)
+    assert r.text == "ok, I'll retry smaller."

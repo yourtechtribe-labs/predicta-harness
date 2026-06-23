@@ -74,9 +74,10 @@ class WorkHandler(BaseHTTPRequestHandler):
                 # Real work (e.g. drafting + editing a multi-section report) takes many
                 # read/write/run iterations; 12 ran out mid-task. Env-tunable.
                 max_steps=int(body.get("maxSteps") or os.environ.get("WORK_MAX_STEPS", "25")),
-                # Work writes CODE into tool-call arguments (a JSON string). 2048 truncates a
-                # real file → unterminated JSON → the provider can't parse it. Give it room.
-                max_tokens=int(os.environ.get("WORK_MAX_TOKENS", "8192")),
+                # Work writes CODE/docs into tool-call arguments (a JSON string). Too low
+                # truncates a real file → unparseable JSON. Generous default; env-tunable. If
+                # it still truncates, the provider's parse_error tells the model to split it.
+                max_tokens=int(os.environ.get("WORK_MAX_TOKENS", "16384")),
                 # Fires inside the ReAct loop → each executed sandbox tool streams live.
                 on_tool=lambda n, i, o: self._sse("tool", {"name": n, "input": i, "output": o[:_SSE_PREVIEW]}),
             )

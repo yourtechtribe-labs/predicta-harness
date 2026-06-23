@@ -64,13 +64,22 @@ class OpenAIProvider(Provider):
         tool_calls: list[ToolCall] = []
         for tc in (choice.tool_calls or []):
             # The model's arguments are a JSON string. A malformed/truncated one (e.g. a
-            # long code blob cut off at max_tokens) must NOT crash the whole loop — degrade
-            # to {} so the tool fails gracefully and the model can retry (ReAct self-corrects).
+            # long code blob cut off at max_tokens) must NOT crash the loop. Instead of
+            # silently passing {} (→ a cryptic "missing argument" downstream), carry an
+            # actionable parse_error so the loop tells the model exactly what to fix.
             try:
                 args = json.loads(tc.function.arguments or "{}")
+                parse_error = None
             except (json.JSONDecodeError, TypeError):
                 args = {}
-            tool_calls.append(ToolCall(id=tc.id, name=tc.function.name, input=args))
+                parse_error = (
+                    f"The arguments for '{tc.function.name}' were not valid JSON — they were "
+                    f"likely truncated at the output token limit. Retry with a SMALLER payload "
+                    f"(e.g. write a large file in several smaller write_file calls)."
+                )
+            tool_calls.append(
+                ToolCall(id=tc.id, name=tc.function.name, input=args, parse_error=parse_error)
+            )
             content_blocks.append(
                 {"type": "tool_use", "id": tc.id, "name": tc.function.name, "input": args}
             )
