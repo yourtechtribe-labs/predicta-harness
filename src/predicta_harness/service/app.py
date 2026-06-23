@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 
 from ..agent import Agent
@@ -27,6 +28,27 @@ WORK_SYSTEM = (
 # Per-tool output is hard-clipped to this many chars on the SSE wire: it's a live PROGRESS
 # preview, not the full result (the model already saw the full output inside its loop).
 _SSE_PREVIEW = 2000
+
+
+def _today_madrid() -> str:
+    """Real current date in Europe/Madrid (the team's timezone). LLMs invent dates from their
+    training cutoff, so we inject the real one. zoneinfo needs OS tzdata (Linux has it); on a
+    Windows dev box without it we fall back to the local clock (which is Madrid here)."""
+    try:
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Europe/Madrid"))
+    except Exception:
+        now = datetime.now()
+    return now.strftime("%Y-%m-%d (%A)")
+
+
+def _work_system() -> str:
+    """The work system prompt + the REAL current date, so documents are dated correctly."""
+    return (
+        f"{WORK_SYSTEM}\n\n"
+        f"Contexto temporal: hoy es {_today_madrid()}, zona horaria Europe/Madrid. "
+        f"Usa SIEMPRE esta fecha real en cualquier documento o versión; nunca inventes fechas."
+    )
 
 
 def _make_sandbox(ws: Workspace) -> Sandbox:
@@ -69,7 +91,7 @@ class WorkHandler(BaseHTTPRequestHandler):
             ws = Workspace(body["workspace"])
             agent = Agent(
                 model=body["model"],
-                system=WORK_SYSTEM,
+                system=_work_system(),  # WORK_SYSTEM + the real Madrid date (no invented dates)
                 tools=sandbox_tools(ws, _make_sandbox(ws)),
                 # Real work (e.g. drafting + editing a multi-section report) takes many
                 # read/write/run iterations; 12 ran out mid-task. Env-tunable.

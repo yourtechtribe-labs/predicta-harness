@@ -56,9 +56,21 @@ def sandbox_tools(workspace: Workspace, sandbox: Sandbox) -> list[Tool]:
         names = workspace.list_files(subdir)
         return "\n".join(names) if names else "(empty)"
 
+    def edit_file(path: str, old: str, new: str) -> str:
+        "Edit a file in place by replacing text: every occurrence of `old` becomes `new`. "
+        "Prefer this over rewriting a whole file (and over writing throwaway scripts to patch "
+        "it): to INSERT, replace an anchor line with itself + the new content. `old` must match "
+        "exactly. Errors if the file is missing or `old` is not found, so you can adjust."
+        content = workspace.read_file(path)
+        if old not in content:
+            return f"el texto a reemplazar no se encontró en {path} (debe coincidir EXACTAMENTE, incluidos espacios/saltos)"
+        n = content.count(old)
+        workspace.write_file(path, content.replace(old, new))
+        return f"editado {path}: {n} reemplazo(s)"
+
     def run_code(code: str, timeout: float = 30.0) -> str:
         "Execute Python code in the sandbox, with the workspace as the working directory. "
         "Returns the exit code, stdout and stderr. Files you wrote with write_file are visible here."
         return _format(sandbox.run(code, lang="python", timeout=timeout))
 
-    return [Tool.from_function(f) for f in (read_file, write_file, list_files, run_code)]
+    return [Tool.from_function(f) for f in (read_file, write_file, edit_file, list_files, run_code)]

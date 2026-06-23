@@ -12,9 +12,21 @@ def _tools(tmp_path):
     return ws, {t.name: t for t in sandbox_tools(ws, LocalSandbox(ws))}
 
 
-def test_four_tools_with_expected_names(tmp_path):
+def test_tools_with_expected_names(tmp_path):
     _, tools = _tools(tmp_path)
-    assert set(tools) == {"read_file", "write_file", "list_files", "run_code"}
+    assert set(tools) == {"read_file", "write_file", "edit_file", "list_files", "run_code"}
+
+
+def test_edit_file_replaces_and_reports(tmp_path):
+    ws, tools = _tools(tmp_path)
+    ws.write_file("doc.md", "Version: 0.1\nHola mundo\nVersion: 0.1")
+    out = tools["edit_file"].run({"path": "doc.md", "old": "0.1", "new": "0.2"})
+    assert "2 reemplazo" in out                      # both occurrences replaced
+    assert ws.read_file("doc.md") == "Version: 0.2\nHola mundo\nVersion: 0.2"
+    # a non-matching edit reports clearly and changes nothing
+    miss = tools["edit_file"].run({"path": "doc.md", "old": "NOPE", "new": "x"})
+    assert "no se encontró" in miss
+    assert "Version: 0.2" in ws.read_file("doc.md")
 
 
 def test_schemas_inferred(tmp_path):
