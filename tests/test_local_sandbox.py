@@ -48,3 +48,13 @@ def test_timeout(tmp_path):
 def test_unsupported_lang_raises(tmp_path):
     with pytest.raises(ValueError):
         _sb(tmp_path).run("echo hi", lang="bash")
+
+
+def test_utf8_stdout_and_default_file_encoding(tmp_path):
+    # Regression: on Windows (cp1252 locale) accents came back as mojibake. -X utf8 +
+    # utf-8 decoding must keep both stdout AND the agent's default open() in UTF-8.
+    ws = Workspace(tmp_path / "ws")
+    sb = LocalSandbox(ws)
+    assert sb.run("print('Resolución versión ñ')").stdout.strip() == "Resolución versión ñ"
+    sb.run("open('a.txt', 'w').write('Gestión de Estado')")  # no encoding arg on purpose
+    assert ws.read_file("a.txt") == "Gestión de Estado"

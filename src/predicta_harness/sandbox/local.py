@@ -30,14 +30,19 @@ class LocalSandbox(Sandbox):
             raise ValueError(f"LocalSandbox supports lang='python' only, got {lang!r}")
         # -I = isolated mode: ignore env vars and the user site-packages, so the snippet
         # runs in a clean interpreter (closer to what the jailed backend gives).
-        argv = [self._python, "-I", "-c", code]
+        # -X utf8 = force UTF-8 mode so the agent's open()/print default to UTF-8 even on
+        # Windows (whose locale is cp1252) — without it, writing a file with accents and
+        # reading it back produced mojibake. (PYTHONUTF8 won't work here: -I implies -E,
+        # which ignores env vars; -X is honoured.) We also DECODE stdout as UTF-8 to match.
+        argv = [self._python, "-I", "-X", "utf8", "-c", code]
         t0 = time.monotonic()
         try:
             proc = subprocess.run(
                 argv,
                 cwd=self.workspace.root,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout,
             )
             return ExecResult(

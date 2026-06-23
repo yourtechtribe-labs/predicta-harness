@@ -71,7 +71,9 @@ class WorkHandler(BaseHTTPRequestHandler):
                 model=body["model"],
                 system=WORK_SYSTEM,
                 tools=sandbox_tools(ws, _make_sandbox(ws)),
-                max_steps=int(body.get("maxSteps", 12)),
+                # Real work (e.g. drafting + editing a multi-section report) takes many
+                # read/write/run iterations; 12 ran out mid-task. Env-tunable.
+                max_steps=int(body.get("maxSteps") or os.environ.get("WORK_MAX_STEPS", "25")),
                 # Work writes CODE into tool-call arguments (a JSON string). 2048 truncates a
                 # real file → unterminated JSON → the provider can't parse it. Give it room.
                 max_tokens=int(os.environ.get("WORK_MAX_TOKENS", "8192")),
