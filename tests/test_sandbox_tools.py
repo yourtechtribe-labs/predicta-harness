@@ -14,7 +14,16 @@ def _tools(tmp_path):
 
 def test_tools_with_expected_names(tmp_path):
     _, tools = _tools(tmp_path)
-    assert set(tools) == {"read_file", "write_file", "edit_file", "list_files", "run_code"}
+    assert set(tools) == {"read_file", "write_file", "edit_file", "delete_file", "list_files", "run_code"}
+
+
+def test_delete_file_removes_and_reports(tmp_path):
+    ws, tools = _tools(tmp_path)
+    ws.write_file("gone.md", "bye")
+    assert "borrado gone.md" in tools["delete_file"].run({"path": "gone.md"})
+    assert ws.list_files() == []
+    # deleting an absent file reports cleanly (no crash)
+    assert "no existe" in tools["delete_file"].run({"path": "gone.md"})
 
 
 def test_edit_file_replaces_and_reports(tmp_path):

@@ -68,9 +68,19 @@ def sandbox_tools(workspace: Workspace, sandbox: Sandbox) -> list[Tool]:
         workspace.write_file(path, content.replace(old, new))
         return f"editado {path}: {n} reemplazo(s)"
 
+    def delete_file(path: str) -> str:
+        "Delete a file from the workspace. Use ONLY when explicitly asked to remove it — this "
+        "is irreversible. A first-class, auditable tool (vs. deleting via run_code): the call "
+        "is logged. Errors if the path escapes the workspace; reports cleanly if it's absent."
+        target = workspace.resolve(path)  # raises ValueError on traversal/absolute
+        if not target.is_file():
+            return f"no existe el fichero {path} (nada que borrar)"
+        target.unlink()
+        return f"borrado {path}"
+
     def run_code(code: str, timeout: float = 30.0) -> str:
         "Execute Python code in the sandbox, with the workspace as the working directory. "
         "Returns the exit code, stdout and stderr. Files you wrote with write_file are visible here."
         return _format(sandbox.run(code, lang="python", timeout=timeout))
 
-    return [Tool.from_function(f) for f in (read_file, write_file, edit_file, list_files, run_code)]
+    return [Tool.from_function(f) for f in (read_file, write_file, edit_file, delete_file, list_files, run_code)]
