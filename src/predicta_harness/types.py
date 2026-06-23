@@ -95,3 +95,8 @@ class RunResult:
     messages: list[Message] = field(default_factory=list)
     steps: int = 0                # how many loop iterations (model calls) it took
     data: Any = None              # validated object, if result_schema was passed (structured output)
+    # STRUCTURED termination signal (the authoritative way to know why the loop ended —
+    # natural-language text is ambiguous, per the Claude Agent SDK stop-reason guidance):
+    #   "end_turn"  → the model finished on its own (or submitted structured output)
+    #   "max_steps" → the iteration cap (a safety net) was hit before the model finished
+    stop_reason: str = "end_turn"

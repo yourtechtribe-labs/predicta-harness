@@ -88,6 +88,7 @@ class WorkHandler(BaseHTTPRequestHandler):
                 "summary": result.text,
                 "files": ws.list_files(),
                 "steps": result.steps,
+                "stop_reason": result.stop_reason,  # "end_turn" | "max_steps" (structured)
                 "usage": str(result.usage),
             })
         except Exception as e:

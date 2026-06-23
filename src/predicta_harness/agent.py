@@ -90,7 +90,8 @@ class Agent:
                 f"do not answer in plain text."
             )
 
-        done = False
+        done = False        # structured submit completed
+        finished = False    # model finished on its own (non-tool_use turn)
         while steps < self.max_steps and not done:
             turn = self.provider.complete(
                 model_id=self.model_id,
@@ -107,6 +108,7 @@ class Agent:
             if turn.stop_reason != "tool_use" or not turn.tool_calls:
                 final_text = turn.text
                 if result_schema is None:
+                    finished = True
                     break
                 # Structured run but it answered in text instead of calling
                 # submit_result (data is always None here — success exits the loop).
@@ -137,12 +139,13 @@ class Agent:
 
             messages.append({"role": "user", "content": result_blocks})
 
-        if steps >= self.max_steps and not final_text and data is None:
-            final_text = "[predicta-harness] max_steps reached without a final answer."
+        # STRUCTURED termination signal (don't make callers grep the text — see RunResult).
+        # The loop ended because the model finished (end_turn) OR the safety-net cap was hit.
+        stop_reason = "end_turn" if (finished or done) else "max_steps"
 
         return RunResult(
             text=(final_text or "").strip(), usage=usage,
-            messages=messages, steps=steps, data=data,
+            messages=messages, steps=steps, data=data, stop_reason=stop_reason,
         )
 
     def _build_submit_tool(self, schema_model: type[BaseModel]) -> Tool:
