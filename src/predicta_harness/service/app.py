@@ -85,10 +85,12 @@ class WorkHandler(BaseHTTPRequestHandler):
 
     # ── F6: read-only workspace browsing (the office proxies these for the explorer) ──
     def _files(self, qs: dict) -> None:
-        """List the files in a workspace. Any failure (bad/missing param) → 400 {error}."""
+        """List the files in a workspace. Hides generated noise (__pycache__/*.pyc) from the
+        explorer view — they're build artifacts, not the agents' work. Any failure → 400."""
         try:
             ws = Workspace(qs["workspace"][0])
-            self._json(200, {"files": ws.list_files()})
+            files = [f for f in ws.list_files() if "__pycache__" not in f and not f.endswith(".pyc")]
+            self._json(200, {"files": files})
         except Exception as e:
             self._json(400, {"error": f"{type(e).__name__}: {e}"})
 
