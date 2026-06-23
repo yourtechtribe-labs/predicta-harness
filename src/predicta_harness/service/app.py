@@ -72,6 +72,9 @@ class WorkHandler(BaseHTTPRequestHandler):
                 system=WORK_SYSTEM,
                 tools=sandbox_tools(ws, _make_sandbox(ws)),
                 max_steps=int(body.get("maxSteps", 12)),
+                # Work writes CODE into tool-call arguments (a JSON string). 2048 truncates a
+                # real file → unterminated JSON → the provider can't parse it. Give it room.
+                max_tokens=int(os.environ.get("WORK_MAX_TOKENS", "8192")),
                 # Fires inside the ReAct loop → each executed sandbox tool streams live.
                 on_tool=lambda n, i, o: self._sse("tool", {"name": n, "input": i, "output": o[:_SSE_PREVIEW]}),
             )
@@ -89,8 +92,13 @@ class WorkHandler(BaseHTTPRequestHandler):
             self._sse("error", {"message": f"{type(e).__name__}: {e}"})
 
     def _sse(self, event: str, data: dict) -> None:
-        self.wfile.write(f"event: {event}\ndata: {json.dumps(data)}\n\n".encode("utf-8"))
-        self.wfile.flush()
+        try:
+            self.wfile.write(f"event: {event}\ndata: {json.dumps(data)}\n\n".encode("utf-8"))
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionError, OSError):
+            # The client (office) hung up mid-stream. The work still ran server-side; we
+            # just can't stream the rest. Swallow it instead of a noisy traceback.
+            pass
 
     def _text(self, code: int, msg: str) -> None:
         self.send_response(code)

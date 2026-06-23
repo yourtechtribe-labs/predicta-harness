@@ -63,7 +63,13 @@ class OpenAIProvider(Provider):
 
         tool_calls: list[ToolCall] = []
         for tc in (choice.tool_calls or []):
-            args = json.loads(tc.function.arguments or "{}")
+            # The model's arguments are a JSON string. A malformed/truncated one (e.g. a
+            # long code blob cut off at max_tokens) must NOT crash the whole loop — degrade
+            # to {} so the tool fails gracefully and the model can retry (ReAct self-corrects).
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except (json.JSONDecodeError, TypeError):
+                args = {}
             tool_calls.append(ToolCall(id=tc.id, name=tc.function.name, input=args))
             content_blocks.append(
                 {"type": "tool_use", "id": tc.id, "name": tc.function.name, "input": args}
