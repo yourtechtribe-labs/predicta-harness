@@ -91,11 +91,53 @@ class OpenAIProvider(Provider):
             getattr(u, "completion_tokens", 0) or 0,
         )
 
-        stop = "tool_use" if tool_calls else "end_turn"
+        # Preserve WHY the model stopped, translated to the canonical vocabulary.
+        #
+        # This used to be hardcoded to "end_turn", which silently dropped the
+        # `length` signal: a reply truncated at max_tokens was indistinguishable
+        # from a complete one. The Anthropic provider already forwards its real
+        # stop_reason, so the same AssistantTurn meant different things depending
+        # on the provider — while the type promises a *normalized* result.
+        #
+        # It matters in practice: models that emit a `reasoning` field spend
+        # output tokens on it BEFORE writing `content`. On a tight budget the
+        # reasoning eats the allowance and `content` arrives empty with
+        # finish_reason="length". A caller that sees "end_turn" would treat that
+        # empty/truncated answer as a legitimate reply.
+        stop = "tool_use" if tool_calls else self._canonical_stop_reason(resp)
         return AssistantTurn(
             text=text, tool_calls=tool_calls, content_blocks=content_blocks,
             usage=usage, stop_reason=stop,
         )
+
+    # --- stop reason ---------------------------------------------------------
+
+    # OpenAI's finish_reason -> the canonical (Anthropic-like) vocabulary that
+    # AssistantTurn.stop_reason uses, so callers can branch on one set of values
+    # regardless of which provider served the call.
+    _FINISH_REASON_MAP = {
+        "stop": "end_turn",
+        "length": "max_tokens",       # the signal that was being dropped
+        "tool_calls": "tool_use",
+        "content_filter": "content_filter",
+        "function_call": "tool_use",  # legacy function-calling
+    }
+
+    @classmethod
+    def _canonical_stop_reason(cls, resp: Any) -> str:
+        """Map the provider's finish_reason, defaulting to "end_turn" if absent.
+
+        Unknown values are passed through rather than collapsed: a new
+        finish_reason from the provider should surface to the caller, not be
+        silently renamed to "end_turn".
+        """
+        try:
+            raw = resp.choices[0].finish_reason
+        except (AttributeError, IndexError, TypeError):
+            return "end_turn"
+        if not raw:
+            return "end_turn"
+        return cls._FINISH_REASON_MAP.get(raw, raw)
 
     # --- canonical -> OpenAI Chat Completions translation -------------------
 
