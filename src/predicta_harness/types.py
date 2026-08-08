@@ -10,6 +10,7 @@ which provider they are talking to.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any, Literal
 
 from .usage import cost_for
@@ -44,18 +45,35 @@ class Usage:
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     cost_usd: float = 0.0
+    unpriced_calls: int = 0
+    """Calls whose model has no entry in the pricing table.
+
+    `cost_usd` is therefore a LOWER BOUND whenever this is non-zero, and a total
+    that quietly omitted them would be indistinguishable from a complete one.
+    Counting them instead of poisoning the total to None keeps the part that IS
+    known usable: "$0.42 across 99 calls, 1 unpriced" is actionable, a bare None
+    across a hundred calls is not.
+    """
 
     @classmethod
     def for_call(
         cls, model_id: str, input_tokens: int, output_tokens: int,
         cache_write: int = 0, cache_read: int = 0,
+        *, on: date | None = None,
     ) -> "Usage":
-        """Build the Usage for a single model call (calls=1) and compute its cost."""
+        """Build the Usage for a single model call (calls=1) and compute its cost.
+
+        `on` is passed through to the rate lookup so a test can pin the date a
+        promotional price is evaluated against; None means now, which is the
+        right answer for a call actually being made.
+        """
+        cost = cost_for(model_id, input_tokens, output_tokens, cache_write, cache_read, on=on)
         return cls(
             model=model_id, calls=1,
             input_tokens=input_tokens, output_tokens=output_tokens,
             cache_write_tokens=cache_write, cache_read_tokens=cache_read,
-            cost_usd=cost_for(model_id, input_tokens, output_tokens, cache_write, cache_read),
+            cost_usd=0.0 if cost is None else cost,
+            unpriced_calls=1 if cost is None else 0,
         )
 
     def add(self, other: "Usage") -> None:
@@ -65,10 +83,15 @@ class Usage:
         self.cache_read_tokens += other.cache_read_tokens
         self.cache_write_tokens += other.cache_write_tokens
         self.cost_usd += other.cost_usd
+        self.unpriced_calls += other.unpriced_calls
 
     def __str__(self) -> str:
         tin = self.input_tokens + self.cache_read_tokens + self.cache_write_tokens
-        return f"{tin}->{self.output_tokens} tok · ${self.cost_usd:.4f} · {self.calls} call(s)"
+        cost = f"${self.cost_usd:.4f}"
+        if self.unpriced_calls:
+            # The figure is a floor, and it says so where anyone reading it looks.
+            cost = f">={cost} ({self.unpriced_calls} unpriced)"
+        return f"{tin}->{self.output_tokens} tok · {cost} · {self.calls} call(s)"
 
 
 @dataclass
