@@ -6,7 +6,7 @@ nobody priced is indistinguishable from a correct one — and it is the cheaper
 of the two readings, which is the one nobody goes back to check.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -15,9 +15,12 @@ from predicta_harness.types import Usage
 from predicta_harness.usage import INTRODUCTORY, PRICING, cost_for, rates_for
 
 # Pinned so nothing here reads the wall clock. Every test that could depend on
-# "when it ran" passes a date explicitly instead.
-BEFORE_SONNET5_INTRO_ENDS = date(2026, 8, 15)
-AFTER_SONNET5_INTRO_ENDS = date(2026, 9, 1)
+# "when it ran" passes a date explicitly instead. Two arbitrary dates either
+# side of a month boundary — they were named after Sonnet 5's introductory
+# window until that window stopped existing, which is the same stale-name trap
+# the promo tests below now avoid.
+AN_EARLIER_DATE = date(2026, 8, 15)
+A_LATER_DATE = date(2026, 9, 1)
 
 
 # --------------------------------------------------------------------------
@@ -68,31 +71,66 @@ def test_the_parametrisation_above_is_not_empty():
 # --------------------------------------------------------------------------
 
 
-def test_introductory_rate_applies_before_its_end_date():
+# These three pinned the mechanism to Sonnet 5, the only real entry there was.
+# On 2026-08-17 Anthropic made that rate permanent, INTRODUCTORY emptied, and all
+# three went red — not because the expiry logic broke, but because the example
+# stopped being an example. The mechanism is now exercised against a model that
+# does not exist, so a third party's pricing decision can never turn coverage of
+# it red again. What Sonnet 5 costs is asserted separately, below.
+
+PROMO_MODEL = "test-promo-model"
+PROMO_ENDS = date(2026, 8, 31)
+
+
+@pytest.fixture
+def promo_model(monkeypatch):
+    """A synthetic model on promo: 2.00 until PROMO_ENDS, 3.00 after."""
+    monkeypatch.setitem(PRICING, PROMO_MODEL, usage._anthropic(3.00, 15.00))
+    monkeypatch.setitem(
+        INTRODUCTORY, PROMO_MODEL, (PROMO_ENDS, usage._anthropic(2.00, 10.00))
+    )
+    return PROMO_MODEL
+
+
+def test_introductory_rate_applies_before_its_end_date(promo_model):
     assert cost_for(
-        "claude-sonnet-5", 1_000_000, 0, 0, 0, on=BEFORE_SONNET5_INTRO_ENDS
+        promo_model, 1_000_000, 0, 0, 0, on=PROMO_ENDS - timedelta(days=1)
     ) == pytest.approx(2.00)
 
 
-def test_list_rate_applies_once_the_introductory_period_has_lapsed():
+def test_list_rate_applies_once_the_introductory_period_has_lapsed(promo_model):
     assert cost_for(
-        "claude-sonnet-5", 1_000_000, 0, 0, 0, on=AFTER_SONNET5_INTRO_ENDS
+        promo_model, 1_000_000, 0, 0, 0, on=PROMO_ENDS + timedelta(days=1)
     ) == pytest.approx(3.00)
 
 
-def test_the_last_day_of_the_introductory_period_is_inclusive():
-    until, _ = INTRODUCTORY["claude-sonnet-5"]
-    assert cost_for("claude-sonnet-5", 1_000_000, 0, 0, 0, on=until) == pytest.approx(2.00)
+def test_the_last_day_of_the_introductory_period_is_inclusive(promo_model):
+    until, _ = INTRODUCTORY[promo_model]
+    assert cost_for(promo_model, 1_000_000, 0, 0, 0, on=until) == pytest.approx(2.00)
+
+
+def test_sonnet_5_does_not_revert_to_the_list_rate_in_september():
+    # The regression this file now exists to prevent. Sonnet 5 sat in
+    # INTRODUCTORY with `until = 2026-08-31`; Anthropic made 2.00/10.00
+    # permanent on 2026-08-12 and cancelled the 3.00/15.00 that was to start on
+    # September 1. Left alone, every Sonnet 5 figure would have been 50% high
+    # from that date, silently. The date here is deliberately past the old
+    # expiry: a future price for Sonnet 5 that is not 2.00 has to be a decision
+    # somebody makes, not one a stale `until` makes for them.
+    assert cost_for(
+        "claude-sonnet-5", 1_000_000, 0, 0, 0, on=date(2026, 9, 1)
+    ) == pytest.approx(2.00)
+    assert "claude-sonnet-5" not in INTRODUCTORY
 
 
 def test_a_model_with_no_promotion_ignores_the_date_entirely():
-    before = cost_for("claude-opus-5", 1_000_000, 0, 0, 0, on=BEFORE_SONNET5_INTRO_ENDS)
-    after = cost_for("claude-opus-5", 1_000_000, 0, 0, 0, on=AFTER_SONNET5_INTRO_ENDS)
+    before = cost_for("claude-opus-5", 1_000_000, 0, 0, 0, on=AN_EARLIER_DATE)
+    after = cost_for("claude-opus-5", 1_000_000, 0, 0, 0, on=A_LATER_DATE)
     assert before == after == pytest.approx(5.00)
 
 
 def test_rates_for_reports_unknown_models_as_none():
-    assert rates_for("no-such-model", on=BEFORE_SONNET5_INTRO_ENDS) is None
+    assert rates_for("no-such-model", on=AN_EARLIER_DATE) is None
 
 
 def test_omitting_the_date_goes_through_the_utc_clock(monkeypatch):
@@ -101,11 +139,16 @@ def test_omitting_the_date_goes_through_the_utc_clock(monkeypatch):
     # every other test in this file passes `on=` explicitly, so all of them
     # stayed green over the dead code. Patching the clock is what proves the
     # default path is wired to it.
-    monkeypatch.setattr(usage, "_today", lambda: AFTER_SONNET5_INTRO_ENDS)
-    assert rates_for("claude-sonnet-5")["input"] == pytest.approx(3.00)
+    monkeypatch.setitem(PRICING, PROMO_MODEL, usage._anthropic(3.00, 15.00))
+    monkeypatch.setitem(
+        INTRODUCTORY, PROMO_MODEL, (PROMO_ENDS, usage._anthropic(2.00, 10.00))
+    )
 
-    monkeypatch.setattr(usage, "_today", lambda: BEFORE_SONNET5_INTRO_ENDS)
-    assert rates_for("claude-sonnet-5")["input"] == pytest.approx(2.00)
+    monkeypatch.setattr(usage, "_today", lambda: PROMO_ENDS + timedelta(days=1))
+    assert rates_for(PROMO_MODEL)["input"] == pytest.approx(3.00)
+
+    monkeypatch.setattr(usage, "_today", lambda: PROMO_ENDS - timedelta(days=1))
+    assert rates_for(PROMO_MODEL)["input"] == pytest.approx(2.00)
 
 
 def test_the_default_clock_is_utc_and_not_the_host_timezone():
