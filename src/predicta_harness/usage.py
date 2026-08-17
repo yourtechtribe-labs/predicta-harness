@@ -46,7 +46,7 @@ def _today() -> date:
     """
     return datetime.now(timezone.utc).date()
 
-PRICING_VERIFIED_ON = date(2026, 8, 8)
+PRICING_VERIFIED_ON = date(2026, 8, 17)
 """When the figures below were last checked against the published table.
 
 Deliberately a constant and not a test that goes red after N days: a floor that
@@ -81,7 +81,12 @@ PRICING: dict[str, dict[str, float]] = {
     "claude-opus-4-8":   _anthropic(5.00, 25.00),
     "claude-opus-4-7":   _anthropic(5.00, 25.00),
     "claude-opus-4-6":   _anthropic(5.00, 25.00),
-    "claude-sonnet-5":   _anthropic(3.00, 15.00),
+    # 2.00/10.00 launched as promotional and was made PERMANENT on 2026-08-12:
+    # "Claude Sonnet 5's introductory pricing is now permanent... The standard
+    # pricing ($3 input/$15 output) previously set to take effect September 1 no
+    # longer applies." (Anthropic, direct notice). It is a plain row now, not an
+    # INTRODUCTORY entry, because there is no longer an expiry to model.
+    "claude-sonnet-5":   _anthropic(2.00, 10.00),
     "claude-sonnet-4-6": _anthropic(3.00, 15.00),
     "claude-haiku-4-5":  _anthropic(1.00, 5.00),
     # OpenAI (indicative)
@@ -93,14 +98,28 @@ PRICING: dict[str, dict[str, float]] = {
 }
 
 INTRODUCTORY: dict[str, tuple[date, dict[str, float]]] = {
-    # Sonnet 5 launched at a promotional rate. `until` is the LAST day it applies.
-    "claude-sonnet-5": (date(2026, 8, 31), _anthropic(2.00, 10.00)),
+    # Empty on purpose. Sonnet 5 lived here with `until = 2026-08-31` until
+    # 2026-08-17, when Anthropic made that rate permanent (see its row in
+    # PRICING). It moved to a plain row rather than having its date pushed out:
+    # an entry here asserts "this lapses", and that is no longer true of it.
 }
 """Promotional rates that lapse on a known date.
 
 The expiry lives in the data so the lapse is a computation, not something
 somebody has to remember. When an entry's date has passed it stops being
 selected on its own; deleting it afterwards is tidying, not a fix.
+
+The mechanism earned its keep on its first real test, and not the way it was
+meant to. It was built for the lapse — the day a promo ends and the rate must
+rise. What actually happened was the opposite: the promo was made permanent
+five days into the window, and the expiry that was protecting us became the
+bug. Left alone, this file would have raised Sonnet 5 to $3/$15 on 1 September
+and over-reported every figure by 50% from that day, with nothing to signal it.
+
+The lesson is not about promos. A date in this file is a claim about a third
+party's future decision, and the failure mode runs in both directions: a rate
+can stop lapsing as easily as it can lapse. Whatever the reason for a dated
+entry, the date is only as fresh as the last time someone checked the source.
 """
 
 
