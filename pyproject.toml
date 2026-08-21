@@ -12,9 +12,24 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-anthropic = ["anthropic>=0.40"]
+# Ceiling, not just a floor. The Anthropic SDK released 1.0.0 and REMOVED
+# `temperature` from `messages.create` — its parameters are now max_tokens,
+# messages, model, cache_control, container, inference_geo, metadata,
+# output_config, service_tier, stop_sequences, stream, system, thinking,
+# tool_choice, tools, user_profile_id.
+#
+# `>=0.40` let that into a production image with no warning, and the failure
+# surfaced nowhere except in production: the reconciliation triage died on its
+# first call with `Messages.create() got an unexpected keyword argument
+# 'temperature'`, having judged 0 of 1.798 matches (2026-08-21). Locally the
+# same code works, because this machine has 0.122.0.
+#
+# The cap buys the time to port to 1.0 deliberately rather than discovering it
+# from a client-facing job. Sampling settings appear to have moved under
+# `output_config`; that port is its own change, with its own measurement.
+anthropic = ["anthropic>=0.40,<1.0"]
 openai = ["openai>=1.40"]
-all = ["anthropic>=0.40", "openai>=1.40"]
+all = ["anthropic>=0.40,<1.0", "openai>=1.40"]
 test = ["pytest>=8"]
 
 [build-system]
