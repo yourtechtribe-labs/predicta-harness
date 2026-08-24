@@ -231,6 +231,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="write the measurement back, lowering nothing")
     args = parser.parse_args(argv)
 
+    started = time.monotonic()
     declared = _load()
     measured = measure()
     found = regressions(measured, declared)
@@ -249,6 +250,22 @@ def main(argv: list[str] | None = None) -> int:
         {"measured": measured, "floor": declared["floor"], "regressions": found},
         indent=2,
     ))
+
+    # What this project publishes about itself, written by the command that already
+    # verifies it. Deliberately AFTER the verdict is known and regardless of it: a
+    # state file that only appears when the gate is green is a state file that says
+    # nothing on the day it would matter most.
+    import state as state_module  # local import: the gate must run without it
+
+    state_module.write(
+        measured,
+        {
+            "command": "python ratchet.py --check",
+            "exit": 1 if found else 0,
+            "seconds": round(time.monotonic() - started, 1),
+        },
+    )
+
     if found:
         print(f"{len(found)} regression(s)", file=sys.stderr)
         return 1
