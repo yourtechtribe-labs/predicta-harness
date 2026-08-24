@@ -38,3 +38,16 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/predicta_harness"]
+
+[tool.pytest.ini_options]
+# `ratchet.py` and `state.py` live at the repository root rather than inside the
+# package: they govern this repo, they are not part of what it ships, and a consumer
+# installing `predicta_harness` has no business importing either.
+#
+# That placement made the suite pass or fail depending on HOW it was invoked, which is
+# the worst kind of green. `python -m pytest` puts the working directory on sys.path and
+# plain `pytest` does not, so `ratchet.py --check` -- which spawns the former -- was
+# passing while `pytest -q` could not even import tests/test_namespaces.py. Found on
+# 2026-08-24 by the `compat` CI job on its first run, reported as a 3.10 and 3.12
+# failure; it reproduces identically on 3.11, so the interpreter was never the cause.
+pythonpath = ["."]
