@@ -314,6 +314,15 @@ def build(measured: dict[str, Any], gate: dict[str, Any]) -> dict[str, Any]:
             **git_facts(),
             "gate": gate,
             "floor": measured,
+            # The legend for the index below it, passed through from NAMESPACES.json
+            # unchanged rather than summarised. Until this field a reader of the state
+            # file could see that `R3` exists and had no way to learn that an `R` is a
+            # requirement — the convention lived only in whoever wrote the last spec.
+            #
+            # It also carries the distinction the index alone cannot make: a prefix
+            # owned by another repository is not an undefined label, and `UTF-8` is
+            # not a label at all.
+            "namespaces": declared_namespaces() or None,
             "identifiers": identifiers(),
         },
     }
