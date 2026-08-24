@@ -1,0 +1,82 @@
+# What runs this repository when nobody is watching.
+#
+# Until this file, nothing did. That is worth stating plainly because this package
+# is a submodule of a production application: a change landed here reached a
+# deploy having been proven by whoever pushed it, on whatever they had installed.
+#
+# Three jobs, and the split is the point rather than thoroughness:
+#
+#   suite      the base install — pydantic and pytest, NO provider SDK. This is the
+#              environment the floors in RATCHET.json were measured in, and it is
+#              the environment most consumers actually build.
+#   providers  the opposite install, and the only job that can run the SDK pin
+#              guard at all. It exists because that guard skips itself when the
+#              extra is absent, and a skip is green for the same reason a deleted
+#              test is green.
+#   compat     `requires-python = ">=3.10"` is a claim until something runs on 3.10.
+#
+# The floors were measured on Windows and are enforced here on Linux. If the two
+# disagree on the first run, that disagreement is a finding about the suite, not a
+# reason to widen the floor.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  suite:
+    name: suite + floors (no provider SDK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # `.[test]` and nothing else, deliberately. Installing the extras here would
+      # make the suite green in an environment no consumer has, and would quietly
+      # un-skip the pin guard so the `providers` job below stopped meaning anything.
+      - run: pip install -e ".[test]"
+
+      # Not `pytest`. The ratchet RUNS the suite and then checks every floor
+      # against it, so it subsumes pytest and enforces more; running both would
+      # run the same suite twice.
+      - run: python ratchet.py --check
+
+  providers:
+    name: the SDK pin guard, with the SDK actually installed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[all,test]"
+
+      # The env var turns the guard's `skip` into a hard failure. Without it this
+      # job would pass on an install that silently lacked the extra — reporting
+      # that the pin is fine because nothing looked at it.
+      - run: pytest tests/test_anthropic_sdk_pin.py -q -rs
+        env:
+          HARNESS_REQUIRE_PROVIDER_EXTRAS: "1"
+
+  compat:
+    name: the interpreters pyproject claims to support
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[test]"
+
+      # pytest rather than the ratchet: the floors are one environment's numbers,
+      # and a skip count measured on 3.11 is not a fact about 3.10.
+      - run: pytest -q

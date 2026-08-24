@@ -20,11 +20,33 @@ So the pin has a test, and the test checks the thing the pin exists for: that
 the installed SDK really accepts what callers pass.
 """
 import inspect
+import os
 
 import pytest
 
-anthropic = pytest.importorskip(
-    "anthropic", reason="the anthropic extra is not installed in this environment"
+#: Set by the CI job that installs the provider extras on purpose.
+#:
+#: Without it this module skips, which is correct on a machine that installed the
+#: base package — there is no SDK to introspect. It is NOT correct in the job whose
+#: whole reason to exist is running this file: a skip there is green for the same
+#: reason a deleted test is green, and this guard is the one that stands between a
+#: silent SDK major and a client-facing job dying on its first call.
+REQUIRE = os.environ.get("HARNESS_REQUIRE_PROVIDER_EXTRAS") == "1"
+
+try:
+    import anthropic
+except ImportError:  # pragma: no cover - exercised by the two CI jobs, oppositely
+    if REQUIRE:
+        raise AssertionError(
+            "HARNESS_REQUIRE_PROVIDER_EXTRAS=1 but the anthropic extra is not "
+            "installed. This job exists to run this file; skipping it would report "
+            "green for a guard that did not run."
+        )
+    anthropic = None
+
+pytestmark = pytest.mark.skipif(
+    anthropic is None,
+    reason="the anthropic extra is not installed in this environment",
 )
 
 #: Kwargs this repo's callers forward through `complete(**kwargs)`. Add one when

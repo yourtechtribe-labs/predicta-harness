@@ -1,0 +1,82 @@
+{
+  "_": [
+    "What this repository can prove about itself, measured by ratchet.py against the",
+    "repository rather than read off a document.",
+    "",
+    "It exists because this package is a submodule of a production application and,",
+    "until this file, nothing ran its suite except a person on a laptop. A harness",
+    "that governs other projects and is not governed itself teaches every project",
+    "that consumes it that the floor is optional.",
+    "",
+    "Baseline measured 2026-08-24, Python 3.11 on Windows, installed as",
+    "`pip install -e .[test]` \u2014 pydantic and pytest, NO anthropic and NO openai.",
+    "That environment is the point and not an accident: it is what CI installs, and",
+    "every number below is only meaningful next to it."
+  ],
+  "_kinds": [
+    "floor    may rise, may never fall",
+    "exact    must equal, and a change in EITHER direction has to be deliberate",
+    "ceiling  may fall, may never rise past the tolerance in ratchet.py",
+    "recorded measured every run, gates nothing"
+  ],
+  "kinds": {
+    "tests_passing": "floor",
+    "tests_skipped_without_provider_extras": "exact",
+    "provider_imports_module_level": "exact",
+    "provider_imports_deferred": "exact",
+    "suite_seconds": "ceiling",
+    "tracked_files": "recorded",
+    "tracked_bytes": "recorded"
+  },
+  "_provider_imports": [
+    "The boundary of this package, stated as two exact numbers rather than a rule in",
+    "the README.",
+    "",
+    "`anthropic` and `openai` are OPTIONAL extras. A module-level import of either",
+    "turns an extra into a requirement for everybody who installs the base package,",
+    "and it does so silently \u2014 the failure appears at import time in whatever process",
+    "happens to run first, which is the same shape as the incident that bought the",
+    "SDK ceiling in pyproject.toml.",
+    "",
+    "Measured by walking the AST of every file under src/, deferred imports included,",
+    "because all four of them are written inside functions and a check reading only",
+    "the top of each file would report zero and be wrong in the reassuring direction.",
+    "",
+    "  module level  0   <- providers/base.py resolves lazily",
+    "  deferred      4   <- providers/anthropic.py:19, base.py:76 and :79, openai.py:31",
+    "",
+    "Exact rather than a ceiling: a deferred import REMOVED is also a change worth",
+    "explaining, and only an exact count makes both directions show up in a diff."
+  ],
+  "_tests_skipped": [
+    "Eight, and they are named because an unnamed skip is how a guard stops running",
+    "without anybody deciding that it should.",
+    "",
+    "  6  tests/test_bubblewrap_sandbox.py   bubblewrap is a Linux-only jail",
+    "  2  tests/test_anthropic_sdk_pin.py    the anthropic extra is not installed",
+    "",
+    "The second one is a hole rather than a fact of life: it is the best guard in the",
+    "repo -- it introspects messages.create on the INSTALLED sdk instead of parsing a",
+    "version string -- and it skips in exactly the environment where a wrong pin is",
+    "picked up blind. CI therefore runs a second job WITH the extra and sets",
+    "HARNESS_REQUIRE_PROVIDER_EXTRAS=1, which turns that skip into a failure. And a",
+    "second guard, tests/test_declared_pin.py, checks the DECLARED string in",
+    "pyproject.toml and imports nothing but the standard library, so it can never be",
+    "the test that skipped.",
+    "",
+    "RAISED 7 -> 8 on 2026-08-24, and this is what the exact count is for. The guard",
+    "moved from a module-level `pytest.importorskip` -- one skip for the whole file --",
+    "to a `pytestmark.skipif`, which reports one per test function. Same coverage, and",
+    "the number now counts assertions that did not run rather than files that did not",
+    "load, which is the quantity worth watching."
+  ],
+  "floor": {
+    "tests_passing": 70,
+    "tests_skipped_without_provider_extras": 8,
+    "provider_imports_module_level": 0,
+    "provider_imports_deferred": 4,
+    "suite_seconds": 5.31,
+    "tracked_files": 45,
+    "tracked_bytes": 167064
+  }
+}
