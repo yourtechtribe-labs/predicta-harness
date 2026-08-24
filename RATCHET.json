@@ -71,12 +71,12 @@
     "load, which is the quantity worth watching."
   ],
   "floor": {
-    "tests_passing": 70,
+    "tests_passing": 74,
     "tests_skipped_without_provider_extras": 8,
     "provider_imports_module_level": 0,
     "provider_imports_deferred": 4,
-    "suite_seconds": 5.31,
-    "tracked_files": 45,
-    "tracked_bytes": 167064
+    "suite_seconds": 5.2,
+    "tracked_files": 49,
+    "tracked_bytes": 199411
   }
 }

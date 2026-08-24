@@ -3,8 +3,8 @@
 
 The contract is twin's ``engine/state.schema.json``. Twin owns the schema, every
 project owns its own writer, and no repository depends on another for this — so
-this file imports nothing from twin and nothing from predicta-lite, which has its
-own writer in Python that shares not a line with this one. What crosses the
+this file imports nothing from twin and nothing from the consumer project, which
+has its own writer in Python that shares not a line with this one. What crosses the
 boundary is a checkable artifact, never an import.
 
 Two halves, and the difference between them is the whole point:
@@ -33,6 +33,7 @@ from typing import Any
 REPO = Path(__file__).resolve().parent
 STATE_FILE = REPO / "state.json"
 STATED_FILE = REPO / "STATED.json"
+NAMESPACES_FILE = REPO / "NAMESPACES.json"
 
 SCHEMA_VERSION = 1
 
@@ -58,7 +59,7 @@ _MADRID = timezone(timedelta(hours=2))
 # what keeps a year out: 2026 cannot be a label, M-7 and DR-12 and T5 can.
 _SHAPE = r"[A-Z]{1,4}-?[0-9]{1,3}"
 
-# The shapes predicta-lite's writer reads, copied rather than imported on purpose
+# The shapes the consumer project's writer reads, copied rather than imported on purpose
 # (DR-2 of the contract), plus a fifth this corpus needed. All read off real lines:
 #
 #   - **M-7** — ...          a bold list item
@@ -98,7 +99,7 @@ def _git(*args: str) -> str | None:
             # line — which in these repos is full of em-dashes. The decode fails
             # inside subprocess, the call returns `stdout=None`, and the error
             # surfaces three frames later as an AttributeError that looks like a git
-            # problem. Learned once in predicta-lite and paid for there.
+            # problem. Learned once in a sibling project and paid for there.
             encoding="utf-8",
             errors="replace",
             check=True,
@@ -151,10 +152,61 @@ def _blame_date(relative: str, line: int) -> str | None:
     )
 
 
+def namespace_of(label: str) -> str:
+    """The prefix of a label. `AC1` is an AC, `DR-12` is a DR."""
+    return re.match(r"^([A-Z]{1,4})", label).group(1)
+
+
+def declared_namespaces() -> dict[str, dict[str, Any]]:
+    """What `NAMESPACES.json` says this project's label prefixes are.
+
+    Empty when the file is absent, and that is deliberately a LOUD state rather
+    than a convenient one: with no declaration `identifiers()` indexes every
+    label-shaped string it finds, so a fresh copy of this writer shows its
+    `UTF-8`s on the first run instead of quietly behaving as if somebody had
+    decided something.
+    """
+    if not NAMESPACES_FILE.exists():
+        return {}
+    try:
+        return json.loads(NAMESPACES_FILE.read_text(encoding="utf-8")).get("namespaces", {})
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def corpus_namespaces() -> dict[str, int]:
+    """Every label-shaped prefix these documents contain, and how often.
+
+    Mentions, not definitions. A prefix this repository only ever cites still has
+    to be accounted for — that is the whole case of a label owned by another
+    repository, and the case a rule derived from local definitions cannot see.
+    """
+    found: dict[str, int] = {}
+    for lines in _corpus().values():
+        for line in lines:
+            for label in _MENTION.findall(line):
+                prefix = namespace_of(label)
+                found[prefix] = found.get(prefix, 0) + 1
+    return found
+
+
+def definition_sites() -> dict[str, set[str]]:
+    """Namespace -> the files that define at least one of its labels."""
+    sites: dict[str, set[str]] = {}
+    for relative, lines in _corpus().items():
+        for line in lines:
+            found = _DEFINITION.match(line)
+            if not found:
+                continue
+            label = next(group for group in found.groups() if group)
+            sites.setdefault(namespace_of(label), set()).add(relative)
+    return sites
+
+
 def identifiers(dated: bool = True) -> list[dict[str, Any]]:
     """Every label these documents define or mention, and where it is defined.
 
-    No `text` snippet, and the reason is predicta-lite's rather than this repo's: a
+    No `text` snippet, and the reason is the consumer project's rather than this one's: a
     snippet lifted off a defining line is free prose, and in a repo that names
     clients it can carry one. Nothing here names a client today — but a field whose
     safety depends on which repo it is in is a field that travels wrong the first
@@ -189,26 +241,30 @@ def identifiers(dated: bool = True) -> list[dict[str, Any]]:
                 home = scope if scope in where else (next(iter(where)) if len(where) == 1 else scope)
                 mentions[(home, label)] = mentions.get((home, label), 0) + 1
 
-    # A namespace nothing defines anywhere is not a namespace of this project.
+    # What counts as a namespace is DECLARED, in NAMESPACES.json, and not inferred
+    # here.
     #
-    # `UTF-8` matches the label shape exactly — one to four capitals, a hyphen, a
-    # digit — and it is a character encoding. It appeared in the index as a label
-    # referenced three times and never defined, which is indistinguishable on the
-    # page from a real dangling reference and is the more common of the two.
+    # This used to be inferred: a namespace nothing defined locally was dropped,
+    # which did keep `UTF-8` out of the index. It was a patch. The same rule drops a
+    # label whose definition lives in ANOTHER repository, and it drops it silently —
+    # a foreign label and a typo look identical when the only evidence considered is
+    # this repository's own definitions, and one of those two is a fact worth seeing
+    # on the page.
     #
-    # The rule is derived from the corpus rather than from a list of words to
-    # ignore, which matters: an exclusion list is a judgement about what a string
-    # looks like, and it goes stale silently the first time a real namespace shares
-    # a prefix with something ordinary. "Nothing in this corpus ever defines a UTF-n"
-    # is a fact the corpus states. A genuinely dangling label survives, because its
-    # namespace has other members that ARE defined.
-    defined_namespaces = {
-        re.match(r"^([A-Z]{1,4})", label).group(1) for (_, label) in definitions
+    # So the declaration decides, and `tests/test_namespaces.py` is what makes an
+    # undeclared prefix a red rather than a vanishing act. `authority: "none"` is how
+    # a string that merely matches the shape gets named as not-a-label instead of
+    # being disappeared by a rule nobody wrote down.
+    declared = declared_namespaces()
+    indexable = {
+        prefix for prefix, entry in declared.items() if entry.get("authority") != "none"
     }
 
     index: list[dict[str, Any]] = []
     for (scope, label) in sorted(set(definitions) | set(mentions)):
-        if re.match(r"^([A-Z]{1,4})", label).group(1) not in defined_namespaces:
+        # No declaration at all indexes everything, on purpose: see
+        # `declared_namespaces`. An absence should be loud, not tidy.
+        if declared and namespace_of(label) not in indexable:
             continue
         sites = definitions.get((scope, label), [])
         first = sites[0] if sites else None

@@ -1,0 +1,55 @@
+{
+  "_": [
+    "Every label prefix these documents use, what it means, and who owns it.",
+    "",
+    "The labels are how a spec cites itself -- \"R1 says the workspace is a jail\",",
+    "\"blocked on T3\" -- and until this file nothing anywhere said what an R or an",
+    "AC is. The convention lived entirely in the practice of whoever wrote the last",
+    "document, which is how two people end up meaning different things by the same",
+    "prefix without either of them being wrong.",
+    "",
+    "It is also the authority the index defers to. `state.py` used to drop any",
+    "namespace the corpus never defined -- a rule derived from the corpus rather",
+    "than declared by a person. That is a patch: it made `UTF-8` disappear, and it",
+    "would have made a REAL foreign label disappear the same silent way, since a",
+    "label defined in another repository is indistinguishable from a typo when the",
+    "only evidence considered is this repository. The declaration replaces it, and",
+    "the test suite is what turns an undeclared prefix into a red instead of a",
+    "vanishing act.",
+    "",
+    "Three fields, and each one is load-bearing:",
+    "",
+    "  means       a short noun phrase, lowercase. What a reader should understand",
+    "              the label to be.",
+    "  defined_in  globs where its definitions live. REQUIRED when authority is",
+    "              \"self\", and verified: a definition found outside these globs",
+    "              fails the suite, so the field cannot rot into decoration.",
+    "  authority   \"self\" when this repository defines them; the name of the",
+    "              repository that does when it does not; \"none\" when the prefix",
+    "              is not a label at all.",
+    "",
+    "Measured 2026-08-24 by walking the corpus: T 82 mentions, AC 17, R 16, UTF 3.",
+    "Those four are every label-shaped prefix these documents contain."
+  ],
+  "namespaces": {
+    "AC": {
+      "means": "acceptance criterion",
+      "defined_in": ["specs/*/SPEC.md"],
+      "authority": "self"
+    },
+    "R": {
+      "means": "domain rule",
+      "defined_in": ["specs/*/SPEC.md"],
+      "authority": "self"
+    },
+    "T": {
+      "means": "task",
+      "defined_in": ["specs/*/TASKS.md"],
+      "authority": "self"
+    },
+    "UTF": {
+      "means": "not a label - the character encoding UTF-8 matches the label shape exactly, one to four capitals and a hyphen and a digit",
+      "authority": "none"
+    }
+  }
+}

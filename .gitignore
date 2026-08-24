@@ -17,3 +17,23 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# The judgement half of the project state, and the file it is written into.
+#
+# Not a secrecy rule — there is nothing in them a reader could not infer — but a
+# question of who this repository is addressed to. `state.json` splits into two
+# halves: `derived`, recomputed by the gate on every run, and `stated`, which is a
+# person writing down where the work is, what is next, what is blocked and what is
+# waiting on somebody by name. The first half is a fact about the code and belongs
+# to anyone who clones it. The second is a team's board.
+#
+# A public repository is a shop window. Someone arriving at it should find the
+# harness, its floor and its CI — not a roadmap addressed to one person, rewritten
+# on every gate run and stale between them.
+#
+# Nothing breaks by their absence: `state.py` reads STATED.json off the working
+# tree, not out of git, so the page a session publishes is exactly as complete as
+# it was before. A clone simply gets a state with no `stated` half, which the
+# contract allows and readers already render as "no judgements".
+STATED.json
+state.json

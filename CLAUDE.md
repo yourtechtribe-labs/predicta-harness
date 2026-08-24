@@ -25,8 +25,14 @@ Two consequences, and they are load-bearing rather than aspirational:
   floor, a set of actions, a doctrine and a `CLAUDE.md` belong to the project that measured
   them. The runner that enforces them belongs here.
 
-The spec driving that direction is `specs/harness-base/` in the private `predicta-lite`
-repository; the tasks that land here are marked so.
+The spec driving that direction lives with its first consumer, in a private repository, and
+is not readable from here. That is the normal arrangement rather than an inconvenience: the
+consumer is the one paying for the mechanism and is the one who can say whether it works.
+What arrives here arrives as a task with its own check, and what it is worth is settled by
+this repository's own floor — not by a document nobody outside can open.
+
+`DOCUMENTS.md` is the document set a governed project carries, described from what this
+repository already does.
 
 ---
 
@@ -81,6 +87,23 @@ exact count makes both directions show up in a diff.
    every skip named in `RATCHET.json`, because an unnamed skip is how a guard stops running
    without anybody deciding it should.
 
+5. **Every label prefix is declared before it is used.** `NAMESPACES.json` says what an `R` or
+   an `AC` is, where its definitions live, and who owns it; `tests/test_namespaces.py` fails on
+   a prefix the documents use and nobody declared, on one claimed as ours that nothing here
+   defines, and on one declared that no document uses.
+
+   This replaced a rule that was **inferred**: the index used to silently drop any namespace the
+   corpus never defined. That did keep `UTF-8` out — it matches the label shape exactly — but it
+   would have dropped a label owned by another repository the same silent way, and a foreign
+   label and a typo are indistinguishable when the only evidence is this repository's own
+   definitions. A prefix that merely looks like a label is now declared `"authority": "none"`,
+   which names it instead of disappearing it.
+
+6. **The judgement half of the state is not committed here.** `STATED.json` and `state.json` are
+   gitignored. Not secrecy — who the repository is addressed to. `derived` is a fact about the
+   code and belongs to anyone who clones it; `stated` is a person's board, and a public
+   repository is a shop window. Nothing breaks: the writer reads the working tree, not git.
+
 ---
 
 ## Language
@@ -129,7 +152,10 @@ claims — in `.github/workflows/ci.yml`.
 | Question | Source |
 |---|---|
 | What the package does, and how to use it | `README.md` |
+| Which documents a governed project carries, and what each is for | `DOCUMENTS.md` |
 | What it can prove about itself, in numbers | `RATCHET.json`, produced by `ratchet.py` |
+| What an `R` or an `AC` means, and who owns it | `NAMESPACES.json`, enforced by `tests/test_namespaces.py` |
+| Where the work stands and what is next | `STATED.json` — local, never committed |
 | Why the Anthropic dependency has a ceiling | the comment above the extras in `pyproject.toml`, and the two tests that enforce it |
 | What the sandbox is for and what it refuses | `specs/sandbox/` |
 | What runs, in which environment, and why those are separate | `.github/workflows/ci.yml` |
