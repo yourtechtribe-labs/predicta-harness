@@ -81,7 +81,12 @@ PRICING: dict[str, dict[str, float]] = {
     "claude-opus-4-8":   _anthropic(5.00, 25.00),
     "claude-opus-4-7":   _anthropic(5.00, 25.00),
     "claude-opus-4-6":   _anthropic(5.00, 25.00),
-    "claude-sonnet-5":   _anthropic(3.00, 15.00),
+    # Sonnet 5: el preu de llançament ($2/$10) es va fer PERMANENT el 12/08/2026
+    # ("the standard pricing ($3/$15) previously set to take effect September 1 no
+    # longer applies"). L'entrada INTRODUCTORY de sota va caducar el 31/08 i durant
+    # 11 dies aquest fitxer va cobrar Sonnet 5 un 50 % de mes. Un preu amb data
+    # de caducitat tambe caduca al reves: quan la promocio deixa de ser promocio.
+    "claude-sonnet-5":   _anthropic(2.00, 10.00),
     "claude-sonnet-4-6": _anthropic(3.00, 15.00),
     "claude-haiku-4-5":  _anthropic(1.00, 5.00),
     # OpenAI (indicative)
@@ -93,8 +98,8 @@ PRICING: dict[str, dict[str, float]] = {
 }
 
 INTRODUCTORY: dict[str, tuple[date, dict[str, float]]] = {
-    # Sonnet 5 launched at a promotional rate. `until` is the LAST day it applies.
-    "claude-sonnet-5": (date(2026, 8, 31), _anthropic(2.00, 10.00)),
+    # (buit) Sonnet 5 hi era amb `until` 31/08/2026; el preu es va fer permanent
+    # i viu ara a PRICING. Es deixa la taula per al proper llancament.
 }
 """Promotional rates that lapse on a known date.
 
