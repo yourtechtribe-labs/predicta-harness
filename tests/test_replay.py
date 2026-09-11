@@ -48,3 +48,30 @@ def test_load_corpus_builds_case_objects_with_defaults():
     assert isinstance(corpus[0], Case)
     assert corpus[0].history == []
     assert corpus[0].context == {}
+
+
+def test_verdict_carries_usage_tool_calls_and_latency():
+    # The whole point of a replay is an accuracy × cost table; a Verdict that only
+    # carried the text forced every consumer to wrap its tools and re-read usage.
+    from predicta_harness.tool import tool
+
+    seen = []
+
+    @tool
+    def ping(x: str) -> str:
+        "Echo."
+        seen.append(x)
+        return "pong"
+
+    register_provider("replay-scripted-2", ScriptedProvider([
+        ("tool", "t1", "ping", {"x": "a"}),
+        ("text", "done"),
+    ]))
+    agent = Agent(model="replay-scripted-2/test-model", tools=[ping])
+
+    (v,) = replay(agent, load_corpus([{"case_id": "c1", "message": "go"}]))
+
+    assert v.tool_calls == [("ping", {"x": "a"})]
+    assert seen == ["a"]  # the tool really ran; tool_calls is read from history, not from a wrapper
+    assert v.usage is not None and v.usage.calls == 2
+    assert v.latency_s >= 0
