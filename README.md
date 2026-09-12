@@ -18,6 +18,49 @@ string.
 Neither the Agent SDK (tied to Claude) nor Flue (TypeScript) cover *"multi-provider
 harness in Python"*. That's this.
 
+## Governance: the prompt is a model artifact
+
+An agent's system prompt, operating manual, accumulated "learnings" and tool set decide
+what it does, and all four are text files anyone can edit in ten seconds. `governance.py`
+applies the six controls a bank applies to a model (the Model Risk Management discipline
+codified in the Fed's SR 11-7, run over three lines of defence) to those files instead:
+
+```python
+from predicta_harness import Agent
+from predicta_harness.governance import Governance, Manifest
+
+manifest = Manifest("governance/manifest.json")
+manifest.register("system", kind="system", text=SYSTEM)
+manifest.approve("system", by="albert", validation_ref="replay:test:24/24",
+                 review_by="2026-12-12")            # an approval MUST cite its evidence
+
+agent = Agent(model="anthropic/claude-sonnet-5", system=SYSTEM, tools=TOOLS,
+              governance=Governance(manifest, env="prod",
+                                    protected=["skills/operator/SKILL.md"]))
+```
+
+| Control | What it does | Fails how |
+|---|---|---|
+| Inventory | every governed artifact in the manifest, by content hash | `status()` returns `unregistered` |
+| Tiering | `tier_for(tool)` **derives** the tier from the effects a tool declares (`@tool(effects="read")`); saying nothing means the higher tier | a tool nobody classified is `critical`, never `standard` |
+| Independent validation | `approve()` requires a `validation_ref` | `GovernanceError` on approval |
+| Approval | `env="prod"` refuses to build an `Agent` on an unapproved prompt (other envs warn) | `GovernanceError` at construction |
+| Change control | an edit changes the hash, which revokes approval by itself | status `changed` |
+| Monitoring | `review_flags(tools, calls)` derives which tools nobody calls, above an evidence threshold | a flag, not a sentence in a doc |
+
+Plus two hard guarantees: **no tool may declare write access to a governed artifact**
+(checked when the `Agent` is built, by comparing declared `writes` paths — structural,
+not a guess about what a tool looks like it does), and a call that smuggles a governed
+path through its arguments is **refused at run time** by an interceptor chained ahead of
+your own.
+
+Why it exists: an agent that can edit its own instructions optimises the signal it sees.
+In a 2026 benchmark of self-improving code agents, 73.8% of Kernel-Bench optimisations
+gained on the observed metric without gaining on the task. The fix is not to forbid
+learning: it is to let the agent **propose** and keep promotion with a human, and to make
+that a property of the code rather than a line in a document. Everything above is opt-in:
+without `governance=`, `Agent` behaves exactly as before.
+
 ## Install
 
 ```bash

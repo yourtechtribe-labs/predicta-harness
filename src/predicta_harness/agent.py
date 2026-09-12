@@ -23,6 +23,22 @@ def _noop(**_kwargs: Any) -> str:  # the submit tool is never executed; it is in
     return ""
 
 
+def _chain_interceptors(
+    first: Callable[[str, dict], str | None],
+    second: Callable[[str, dict], str | None] | None,
+) -> Callable[[str, dict], str | None]:
+    """Run the governance interceptor BEFORE the caller's own. A refusal short-circuits:
+    whatever the caller wanted to do with that call does not get to happen."""
+    if second is None:
+        return first
+
+    def chained(name: str, tool_input: dict) -> str | None:
+        blocked = first(name, tool_input)
+        return blocked if blocked is not None else second(name, tool_input)
+
+    return chained
+
+
 class Agent:
     """
     An agent = model + system prompt + tools. Its `run()` method executes the
@@ -43,6 +59,7 @@ class Agent:
         max_steps: int = 12,
         on_tool: Callable[[str, dict, str], None] | None = None,
         tool_interceptor: Callable[[str, dict], str | None] | None = None,
+        governance: Any = None,
     ):
         self.provider, self.model_id = resolve(model)
         self.model_spec = model
@@ -58,6 +75,18 @@ class Agent:
         tools = tools or []
         self._tools: dict[str, Tool] = {t.name: t for t in tools}
         self._tool_list = list(tools)
+
+        # Model-risk governance (optional, see governance.py). Checked HERE, at
+        # construction, so an unapproved prompt or a tool that claims write access to a
+        # governed artifact fails before the first token is spent, instead of on the
+        # turn where it happens to matter.
+        self.governance = governance
+        if governance is not None:
+            governance.check_tools(self._tool_list)
+            governance.check_prompt(system)
+            self.tool_interceptor = _chain_interceptors(
+                governance.interceptor(), self.tool_interceptor
+            )
 
     def run(
         self,

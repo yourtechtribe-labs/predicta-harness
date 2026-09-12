@@ -17,7 +17,7 @@ any `if name == "...":` dispatch by hand.
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable, get_type_hints
+from typing import Any, Callable, Sequence, get_type_hints
 
 from pydantic import create_model
 
@@ -41,15 +41,39 @@ def object_input_schema(json_schema: dict) -> dict:
 class Tool:
     """Wraps a function as a tool the model can invoke."""
 
-    def __init__(self, fn: Callable, name: str, description: str, input_schema: dict):
+    def __init__(
+        self,
+        fn: Callable,
+        name: str,
+        description: str,
+        input_schema: dict,
+        *,
+        effects: str | None = None,
+        writes: Sequence[str] = (),
+    ):
         self.fn = fn
         self.name = name
         self.description = description
         self.input_schema = input_schema
+        # Governance metadata (see governance.py), inert unless an Agent is built with a
+        # `governance=` gate. `effects` is what the tool DOES ("read" / "write" /
+        # "outward"); the risk tier is derived from it, never declared by hand. Left as
+        # None it means the author said nothing, which governance reads as the higher
+        # tier on purpose.
+        self.effects = effects
+        # Paths the tool declares it may write. This is what makes the "no tool may
+        # touch a governed artifact" check structural instead of a guess about names.
+        self.writes = tuple(writes)
 
     @classmethod
     def from_function(
-        cls, fn: Callable, *, name: str | None = None, description: str | None = None
+        cls,
+        fn: Callable,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        effects: str | None = None,
+        writes: Sequence[str] = (),
     ) -> "Tool":
         tool_name = name or fn.__name__
         tool_desc = description or (inspect.getdoc(fn) or "").strip()
@@ -68,7 +92,9 @@ class Tool:
 
         model = create_model(f"{tool_name}_Args", **fields)  # type: ignore[call-overload]
         input_schema = object_input_schema(model.model_json_schema())
-        return cls(fn, tool_name, tool_desc, input_schema)
+        return cls(
+            fn, tool_name, tool_desc, input_schema, effects=effects, writes=tuple(writes)
+        )
 
     def run(self, inputs: dict[str, Any]) -> str:
         """Run the function with the model's arguments and return a string."""
@@ -77,10 +103,22 @@ class Tool:
 
 
 def tool(
-    fn: Callable | None = None, *, name: str | None = None, description: str | None = None
+    fn: Callable | None = None,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    effects: str | None = None,
+    writes: Sequence[str] = (),
 ):
-    """Decorator. Usage: `@tool` or `@tool(name=..., description=...)`."""
+    """Decorator. Usage: `@tool` or `@tool(name=..., effects="read", writes=[...])`.
+
+    `effects` and `writes` are optional governance metadata: `effects` says what the
+    tool does ("read", "write", "outward") and `writes` lists the paths it may write.
+    Both are inert unless an `Agent` is built with a `governance=` gate.
+    """
     def wrap(f: Callable) -> Tool:
-        return Tool.from_function(f, name=name, description=description)
+        return Tool.from_function(
+            f, name=name, description=description, effects=effects, writes=writes
+        )
 
     return wrap(fn) if fn is not None else wrap

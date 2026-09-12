@@ -21,6 +21,9 @@ from .agent import Agent
 from .tool import Tool, tool
 from .providers.base import Provider, register_provider, resolve
 from .types import RunResult, Usage, ToolCall
+from .governance import (
+    Artifact, Governance, GovernanceError, Manifest, digest, review_flags, tier_for,
+)
 from .sandbox import (
     Sandbox, LocalSandbox, BubblewrapSandbox, Workspace, ExecResult, SandboxError, sandbox_tools,
 )
@@ -30,6 +33,9 @@ __all__ = [
     "Agent", "tool", "Tool",
     "Provider", "register_provider", "resolve",
     "RunResult", "Usage", "ToolCall",
+    # model-risk governance of behaviour-affecting artifacts
+    "Manifest", "Artifact", "Governance", "GovernanceError",
+    "digest", "tier_for", "review_flags",
     # sandbox substrate (code execution + persistent files)
     "Sandbox", "LocalSandbox", "BubblewrapSandbox", "Workspace",
     "ExecResult", "SandboxError", "sandbox_tools",
